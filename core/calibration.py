@@ -3,7 +3,8 @@
 core/calibration.py — 工期校准引擎
 
 从 main.py 提取的业务校准逻辑：
-  * 面积非线性缩放 (scale_factor = (area / base_area) ^ 0.3)
+  * 面积非线性缩放（设计 0.3 / 现场施工 0.5）
+  * 隔墙隐蔽→吊顶隐蔽 并行间隔下限（非整道工序各抬 14 天）
   * 图审/施工许可/BOQ/RFP 工期下限断言
   * 复杂特种施工最小工期断言
 """
@@ -15,11 +16,19 @@ logger = logging.getLogger(__name__)
 
 COMPLEX_SPECIAL_CONSTRUCTION_MIN_DAYS = 80
 
-# 隔墙隐蔽验收 → 吊顶/顶棚隐蔽验收 之间穿插的实体工序（大机电主管/吊顶龙骨/二次机电等）。
-# 用户要求：两道隐蔽验收闸口之间至少 2 周（14 天）间隔，且按面积放大。故对这些工序设工期下限，
-# 面积缩放下不会把间隔压到 2 周以下（大面积仍按 scale_factor 自然放大）。
-INTERSPERSED_TRADE_MIN_DAYS = 14
-INTERSPERSED_TRADE_KEYWORDS = ["大机电", "主管桥架", "主管预埋", "吊顶龙骨", "天花吊顶龙骨", "二次机电"]
+# 隔墙隐蔽 → 吊顶隐蔽 的间隔下限（工作日）。约束的是两道闸口之间的并行穿插链，
+# 不是把每一道穿插工序都抬到 14 天（旧实现会把闸口之前的「大机电主管预埋」也抬到 14，
+# 2000㎡ 工装会被明显拉长）。大面积靠施工缩放自然加大间隔。
+HIDE_INSPECTION_GAP_MIN_DAYS = 14
+BETWEEN_HIDE_KEYWORDS = ["墙面封板", "天花吊顶龙骨", "吊顶龙骨", "二次机电"]
+
+# 实体施工缩放：8000㎡ 模板为 1.0。
+# <1000㎡ 用 0.5 次幂，避免 200㎡ 工序塌成 1 天；
+# ≥1000㎡ 用 0.85 次幂（2000㎡ → 约 0.31），避免工装被 8000㎡ 模板拖成 10+ 天/道、现场 70+ 工日。
+CONSTRUCTION_SCALE_EXPONENT_SMALL = 0.5
+CONSTRUCTION_SCALE_EXPONENT = 0.85
+SMALL_SITE_AREA_SQM = 1000
+DESIGN_SCALE_EXPONENT = 0.3
 
 # 测试与联调(T&C)工期下限：小面积经面积缩放后易被压到 3-4 天，不足以完成系统联动调试。
 # 用户要求(2026-08-28)给 T&C 稍足 buffer，故设 ≥6 工作日下限（大面积仍按 scale 自然放大）。
@@ -50,12 +59,15 @@ def calibrate_durations(
     if log is None:
         log = logger
 
-    # 面积非线性缩放指数 0.3（验证基线）。
-    # 注意: 本模板 base_area=8000（8000㎡ 基准），故 area<base 时 scale<1（工期被压缩），
-    # 指数越大压缩越狠、完工越早；指数越小越接近 1（工期越接近模板基准）。
-    # 2000㎡ -> (2000/8000)^0.3≈0.66；1000㎡ -> (1000/8000)^0.3≈0.51。
-    scale_factor = math.pow(area / float(template_base_area), 0.3)
+    # 前期/设计用 0.3；现场按面积分段（见 CONSTRUCTION_SCALE_EXPONENT*）。
+    design_scale = math.pow(area / float(template_base_area), DESIGN_SCALE_EXPONENT)
+    site_exp = CONSTRUCTION_SCALE_EXPONENT_SMALL if area < SMALL_SITE_AREA_SQM else CONSTRUCTION_SCALE_EXPONENT
+    site_scale = math.pow(area / float(template_base_area), site_exp)
     is_complex = _is_complex_special(area, addons_str)
+    skip_scale = (
+        "图审", "施工许可", "备案", "招投标", "招标", "评标",
+        "发标", "采购", "定标", "Lead Time", "审批", "验收", "移交",
+    )
 
     current_phase_name = ""
     for t in tasks:
@@ -88,25 +100,43 @@ def calibrate_durations(
         elif "RFP" in name and "招标文件" in name and "编制" in name:
             base_dur = min(base_dur, 5) if base_dur > 5 else base_dur
 
+        is_site = bool(t.get("work_weekend")) or ("实体施工" in current_phase_name)
+        scale_factor = site_scale if is_site else design_scale
         if base_dur > 0 and scale_factor != 1.0:
-            if not any(kw in name for kw in [
-                "图审", "施工许可", "备案", "招投标", "招标", "评标",
-                "发标", "采购", "定标", "Lead Time", "审批", "验收", "移交"
-            ]):
-                base_dur = int(round(base_dur * scale_factor))
+            if not any(kw in name for kw in skip_scale):
+                base_dur = max(1, int(round(base_dur * scale_factor)))
 
-        # 隔墙隐蔽→吊顶隐蔽 之间穿插工序的工期下限（至少 2 周间隔，按面积放大）
-        if any(kw in name for kw in INTERSPERSED_TRADE_KEYWORDS) and base_dur > 0:
-            base_dur = max(base_dur, INTERSPERSED_TRADE_MIN_DAYS)
-
-        # 测试与联调(T&C)工期下限（防小面积压缩，给足 buffer）
         if any(kw in name for kw in TC_KEYWORDS) and base_dur > 0:
             base_dur = max(base_dur, TC_MIN_DAYS)
 
         t["duration_days"] = base_dur
         t["duration"] = base_dur
 
+    hide_gap = max(4, int(round(HIDE_INSPECTION_GAP_MIN_DAYS * site_scale)))
+    _ensure_hide_inspection_gap(tasks, hide_gap, log)
     return tasks
+
+
+def _ensure_hide_inspection_gap(tasks: List[Dict[str, Any]], min_days: int, log: logging.Logger) -> None:
+    """两道隐蔽验收之间的并行穿插工序，取其最长工期作为间隔；不足 min_days 只抬这一组。"""
+    between = [
+        t for t in tasks
+        if any(kw in str(t.get("name", "")) for kw in BETWEEN_HIDE_KEYWORDS)
+        and int(t.get("duration_days") or 0) > 0
+    ]
+    if not between:
+        return
+    gap = max(int(t["duration_days"]) for t in between)
+    if gap >= min_days:
+        return
+    factor = min_days / float(gap)
+    for t in between:
+        t["duration_days"] = max(1, int(round(int(t["duration_days"]) * factor)))
+        t["duration"] = t["duration_days"]
+    log.info(
+        "  -> [隐蔽间隔] 隔墙隐蔽→吊顶隐蔽 并行链由 %s 工日抬至 %s 工日（下限 %s）",
+        gap, max(t["duration_days"] for t in between), min_days,
+    )
 
 
 def validate_complex_construction(
