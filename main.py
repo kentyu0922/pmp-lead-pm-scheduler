@@ -213,6 +213,27 @@ def main() -> None:
         output_mpp_path=output_path
     )
     
+    logger.info("Step 5: 导出 Canvas 同款简报 PDF...")
+    try:
+        from core.canvas_report_pdf import build_brief_model, export_canvas_brief_pdf
+        pdf_path = os.path.splitext(output_path)[0] + "_brief.pdf"
+        model = build_brief_model(
+            tasks_solved,
+            project_name=args.project_name,
+            city=args.city,
+            area=args.area,
+            cost=args.cost,
+            delivery=delivery_val,
+            bidding=bidding_val,
+            permit_info=permit_info,
+            start_date=start_date_str,
+            finish_date=str(finish_date),
+        )
+        export_canvas_brief_pdf(model, pdf_path)
+        logger.info(f"  -> Canvas 简报 PDF: {pdf_path}")
+    except Exception:
+        logger.exception("Canvas 简报 PDF 生成失败（MPP 已落盘，PDF 可稍后重试）")
+
     logger.info(f"==================================================")
     logger.info(f"SUCCESS: 调度完成！物理文件已通过 100% 审计落地: {output_path}")
 
