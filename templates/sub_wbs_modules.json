@@ -1,0 +1,263 @@
+{
+  "version": "1.0",
+  "description": "业态与专项可插拔 Sub-WBS 模块库 (供专家 B 动态堆叠使用)",
+  "sub_modules": {
+    "Cleanroom_ISO_Validation_Module": {
+      "description": "洁净室专项: 专项设计/FFU采购/分级洁净施工/检漏/风速压差/粒子采样/ISO第三方验证 (仅在用户明确要求洁净室时注入; ISO验证通过强制卡口搬家)",
+      "tasks": [
+        {
+          "id": 201,
+          "name": "洁净室 FFU/HVAC/正负压差专项设计",
+          "level": 3,
+          "duration": 10,
+          "weave": "design"
+        },
+        {
+          "id": 202,
+          "name": "洁净室FFU/HEPA采购定标",
+          "level": 3,
+          "duration": 8,
+          "weave": "procure"
+        },
+        {
+          "id": 203,
+          "name": "FFU/HEPA交货 Lead Time",
+          "level": 3,
+          "duration": 30,
+          "weave": "procure"
+        },
+        {
+          "id": 204,
+          "name": "Stage 1: 初级洁净施工 (Clean Construction)",
+          "level": 3,
+          "duration": 0,
+          "milestone": true,
+          "weave": "construct"
+        },
+        {
+          "id": 205,
+          "name": "Stage 2: 中级洁净施工 (Pre-Cleanroom)",
+          "level": 3,
+          "duration": 0,
+          "milestone": true,
+          "weave": "construct"
+        },
+        {
+          "id": 206,
+          "name": "Stage 3: 高级洁净施工 (Active Cleanroom)",
+          "level": 3,
+          "duration": 0,
+          "milestone": true,
+          "weave": "construct"
+        },
+        {
+          "id": 207,
+          "name": "FFU高效过滤器安装与检漏(DOP测试)",
+          "level": 3,
+          "duration": 7,
+          "work_weekend": true,
+          "weave": "construct"
+        },
+        {
+          "id": 208,
+          "name": "洁净室互锁门窗系统及五金安装",
+          "level": 3,
+          "duration": 5,
+          "weave": "construct"
+        },
+        {
+          "id": 209,
+          "name": "FFU 及 HEPA 高效过滤器安装与检漏测试",
+          "level": 3,
+          "duration": 2,
+          "weave": "construct"
+        },
+        {
+          "id": 210,
+          "name": "洁净室风速、换气次数及压差梯度平衡调试",
+          "level": 3,
+          "duration": 2,
+          "weave": "construct"
+        },
+        {
+          "id": 211,
+          "name": "悬浮粒子计数与沉降菌多点采样测试",
+          "level": 3,
+          "duration": 2,
+          "weave": "validate"
+        },
+        {
+          "id": 212,
+          "name": "洁净室 ISO 级第三方验证通过",
+          "level": 3,
+          "duration": 0,
+          "milestone": true,
+          "weave": "validate"
+        }
+      ]
+    },
+    "Datacenter_LoadBank_Module": {
+      "name": "数据中心 IDC 假负载与市电切换调试模块",
+      "tasks": [
+        {
+          "id": 301,
+          "name": "双路市电与发电机 ATS 自动切换试验",
+          "level": 3,
+          "duration": 2
+        },
+        {
+          "id": 302,
+          "name": "精密空调 (CRAC) 冷热通道气流调试",
+          "level": 3,
+          "duration": 3
+        },
+        {
+          "id": 303,
+          "name": "UPS 蓄电池组满载放电续航测试",
+          "level": 3,
+          "duration": 2
+        },
+        {
+          "id": 304,
+          "name": "假负载 (Load Bank) 100% 全负荷 72h 模拟测试",
+          "level": 3,
+          "duration": 5
+        },
+        {
+          "id": 305,
+          "name": "[工程节点] 数据中心假负载及 Uptime 验证合格",
+          "level": 3,
+          "duration": 0,
+          "milestone": true
+        }
+      ]
+    },
+    "Suzhou_Permit_Module": {
+      "name": "外省施工单位入苏备案模块",
+      "tasks": [
+        {
+          "id": 101,
+          "name": "准备总包中标通知书及跨省施工资质库材料",
+          "level": 3,
+          "duration_days": 3
+        },
+        {
+          "id": 102,
+          "name": "住建局/政务中心平台提交入苏备案审批",
+          "level": 3,
+          "duration_days": 10
+        },
+        {
+          "id": 103,
+          "name": "[工程节点] 取得进苏施工备案证明",
+          "level": 3,
+          "duration_days": 0,
+          "milestone": true
+        }
+      ]
+    },
+    "Lab_Construction_Module": {
+      "description": "实验室专项: 设计/采购/特气与排毒柜/精密家具/防静电地坪/洁净空调调试 (仅在用户明确要求实验室时注入)",
+      "tasks": [
+        {
+          "id": 401,
+          "name": "实验室特种机电专项设计 (气路/防爆/废气)",
+          "level": 3,
+          "duration": 10,
+          "weave": "design"
+        },
+        {
+          "id": 402,
+          "name": "实验室特种设备采购定标",
+          "level": 3,
+          "duration": 10,
+          "weave": "procure"
+        },
+        {
+          "id": 403,
+          "name": "实验室设备交货 Lead Time",
+          "level": 3,
+          "duration": 40,
+          "weave": "procure"
+        },
+        {
+          "id": 404,
+          "name": "实验室特气管道与排风管安装",
+          "level": 3,
+          "duration": 10,
+          "work_weekend": true,
+          "weave": "construct"
+        },
+        {
+          "id": 405,
+          "name": "实验室耐酸碱排毒柜主体进场定位",
+          "level": 3,
+          "duration": 5,
+          "work_weekend": true,
+          "weave": "construct"
+        },
+        {
+          "id": 406,
+          "name": "实验室精密家具装配与防尘密封",
+          "level": 3,
+          "duration": 8,
+          "work_weekend": true,
+          "weave": "construct"
+        },
+        {
+          "id": 407,
+          "name": "防静电PVC地板与耐酸碱理化板实验台安装",
+          "level": 3,
+          "duration": 4,
+          "weave": "construct"
+        },
+        {
+          "id": 408,
+          "name": "洁净空调空载及满载调试(风量/压差/温湿度)",
+          "level": 3,
+          "duration": 7,
+          "work_weekend": true,
+          "weave": "construct"
+        },
+        {
+          "id": 409,
+          "name": "[工程节点] 实验室机电与家具安装完成",
+          "level": 3,
+          "duration": 0,
+          "milestone": true,
+          "weave": "validate"
+        }
+      ]
+    },
+    "Cooling_Tower_Module": {
+      "name": "屋顶冷却塔重型吊装模块",
+      "tasks": [
+        {
+          "id": 501,
+          "name": "屋面承重梁勘测与工字钢减震基座焊接",
+          "level": 3,
+          "duration": 3
+        },
+        {
+          "id": 502,
+          "name": "封路报批与周末夜间大型吊车进场吊装",
+          "level": 3,
+          "duration": 2
+        },
+        {
+          "id": 503,
+          "name": "冷却塔主设备就位与冷却水供回水主管道对接",
+          "level": 3,
+          "duration": 3
+        },
+        {
+          "id": 504,
+          "name": "[工程节点] 冷却塔系统整体对接完成",
+          "level": 3,
+          "duration": 0,
+          "milestone": true
+        }
+      ]
+    }
+  }
+}

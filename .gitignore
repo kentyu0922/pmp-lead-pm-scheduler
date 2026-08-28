@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.venv/
+output_mpp/*.mpp
+output_mpp/*.xml
+output_mpp/*.json
+output_mpp/*.svg
+*.bak
+*.bak_*
+_dist/
+.workbuddy/
+_en_web_extract/
+.env
+.env.*
+*.pem
+*.key
