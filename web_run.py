@@ -18,6 +18,11 @@ from core.task_utils import clean_procurement_terminology, renumber_tasks_contig
 from core.solver_engine import solve_schedule
 from core import holidays as _holidays
 
+try:
+    from core.mspdi_xml import build_mspdi_xml
+except ImportError:
+    build_mspdi_xml = None  # type: ignore
+
 TEMPLATE_MAP = {
     ("DB", "invite"): "MNC_Standard_Fitout_DB_Invite",
     ("DB", "public"): "MNC_Standard_Fitout_DB_Public",
@@ -79,6 +84,7 @@ def run_from_dict(payload: Dict[str, Any]) -> Dict[str, Any]:
         "task_count": len(tasks_solved),
         "permit_note": f"{permit_info.get('city', city)}: {verdict}".strip(": "),
         "tasks": tasks_solved,
+        "mspdi_xml": build_mspdi_xml(tasks_solved, project_name, start_date) if build_mspdi_xml else "",
     }
 
 
