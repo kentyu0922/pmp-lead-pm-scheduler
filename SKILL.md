@@ -7,6 +7,8 @@ description: 20年经验 Lead PM 全流程工装与工程 Master 进度计划推
 
 本 Skill 是 Master Agent 生成专业 MS Project 进度计划的**总引导说明书**。Master Agent 接收到用户需求后，严格按照本说明书引导，按顺序呼叫三大专业领域能力模块协作完成。
 
+**网页与 Cursor 必须同一入口：** 用户提示词原话交给 `web_run.py`（网页）或 `main.py`（Cursor + MS Project）。开工日/城市/面积/国庆后上任/搬家日一律由 `core/brief_parse.py` 解析，再走同一套 WBS + CPM。禁止在网页用另一套 TypeScript 排期或把「今天」当成开工日。
+
 ---
 
 ## 🏛️ 三大专业领域模块分工架构树 (Skill Architecture Tree Structure View)

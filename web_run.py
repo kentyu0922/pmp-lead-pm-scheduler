@@ -12,6 +12,7 @@ if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
 from experts.permit_expert import query_city_permit_rule
+from core.brief_parse import parse_brief
 from core.sub_wbs_splicer import splice_sub_modules
 from core.calibration import calibrate_durations
 from core.task_utils import clean_procurement_terminology, renumber_tasks_contiguously
@@ -32,19 +33,34 @@ TEMPLATE_MAP = {
 
 
 def run_from_dict(payload: Dict[str, Any]) -> Dict[str, Any]:
-    city = str(payload.get("city") or "全国")
-    area = int(payload.get("area") or 8000)
-    cost = int(payload.get("cost") or 100)
-    delivery = str(payload.get("delivery") or "DB").upper()
-    bidding = str(payload.get("bidding") or "invite").lower()
+    parsed = parse_brief(str(payload.get("brief") or ""))
+    city = str(payload.get("city") or parsed.get("city") or "全国")
+    area_raw = payload.get("area")
+    area = int(area_raw) if area_raw not in (None, "", 0, "0") else int(parsed.get("area") or 8000)
+    cost_raw = payload.get("cost")
+    cost = int(cost_raw) if cost_raw not in (None, "", 0, "0") else int(parsed.get("cost") or 100)
+    delivery = str(payload.get("delivery") or parsed.get("delivery") or "DB").upper()
+    bidding = str(payload.get("bidding") or parsed.get("bidding") or "invite").lower()
     if delivery not in ("DB", "DBB"):
         delivery = "DB"
     if bidding not in ("invite", "public"):
         bidding = "invite"
     mode_key = TEMPLATE_MAP[(delivery, bidding)]
-    start_date = str(payload.get("start_date") or "")
-    project_name = str(payload.get("project_name") or "新建办公空间工装项目")
-    addons = str(payload.get("addons") or "")
+    start_date = str(payload.get("start_date") or parsed.get("start_date") or "").strip()
+    project_name = str(
+        payload.get("project_name") or parsed.get("project_name") or "新建办公空间工装项目"
+    ).strip()
+    addons = str(payload.get("addons") or parsed.get("addons") or "")
+    if not start_date:
+        return {
+            "ok": False,
+            "error": "Skill could not read a start date from the prompt (e.g. 国庆后上任 → first workday after National Day).",
+            "mode_key": mode_key,
+            "start_date": "",
+            "finish_date": "",
+            "task_count": 0,
+            "tasks": [],
+        }
 
     permit_info = query_city_permit_rule(city, area_sqm=area, cost_10k_rmb=cost)
 
