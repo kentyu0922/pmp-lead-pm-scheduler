@@ -115,4 +115,20 @@ def parse_brief(brief: str, today: Optional[datetime.date] = None) -> Dict[str, 
     if not out["start_date"] and re.search(r"今天|今日|即日", text) and START_HINT.search(text):
         out["start_date"] = today.strftime("%Y-%m-%d")
 
+    addons: list[str] = []
+    if re.search(r"洁净|cleanroom|ISO\s*5|ISO\s*7|ISO\s*8", text, re.I):
+        addons.append("Cleanroom_ISO_Validation_Module")
+    if re.search(r"数据中心|机房|IDC|load\s*bank|LoadBank", text, re.I):
+        addons.append("Datacenter_LoadBank_Module")
+    if re.search(r"实验室|理化|Lab\b", text, re.I):
+        addons.append("Lab_Construction_Module")
+    if re.search(r"冷却塔", text):
+        addons.append("Cooling_Tower_Module")
+    if re.search(r"入苏|苏州备案", text):
+        addons.append("Suzhou_Permit_Module")
+    out["addons"] = ",".join(addons)
+
+    if re.search(r"国企|政府|事业单位|财政资金", text) and int(out.get("cost") or 0) >= 400:
+        out["bidding"] = "public"
+
     return out
