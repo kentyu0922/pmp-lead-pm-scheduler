@@ -167,31 +167,37 @@ def _add_task(tasks_el: ET.Element, task: Dict[str, Any], index: int, next_task:
 
     _sub(t_el, "UID", tid)
     _sub(t_el, "ID", str(index + 1))
-    _sub(t_el, "Name", str(task.get("name", "")))
     _sub(t_el, "Type", "1")
     _sub(t_el, "IsNull", "0")
+    _sub(t_el, "OutlineNumber", str(level))
     _sub(t_el, "OutlineLevel", str(level))
-    # Solver already ran the same CPM as Cursor. Stamp those dates so Project
-    # opens without F9 (COM SaveAs after CalculateProject does the same).
-    # ConstraintType stays ASAP (0) unless the task has an explicit constraint —
-    # dates are display/result, not SNET locks.
+    _sub(t_el, "Priority", "500")
+    _sub(t_el, "Name", str(task.get("name", "")))
+    # MSPDI Task schema: Start, Finish, then Duration. EarlyStart must NOT sit
+    # between Start and Finish — Project drops Duration and PredecessorLink (F9 + 无前置).
     start = _ymd(task.get("start"))
     finish = _ymd(task.get("finish"))
     if start:
         _sub(t_el, "Start", _dt(start, 8, 0))
-        _sub(t_el, "EarlyStart", _dt(start, 8, 0))
     if finish:
         fh = 8 if milestone else 17
         _sub(t_el, "Finish", _dt(finish, fh, 0))
-        _sub(t_el, "EarlyFinish", _dt(finish, fh, 0))
     if not summary:
-        _sub(t_el, "Duration", f"PT{dur * 8}H0M0S")
+        hours = dur * 8
+        _sub(t_el, "Duration", f"PT{hours}H0M0S")
         _sub(t_el, "DurationFormat", "7")
-        _sub(t_el, "RemainingDuration", f"PT{dur * 8}H0M0S")
+        _sub(t_el, "Work", f"PT{hours}H0M0S")
+        _sub(t_el, "RemainingDuration", f"PT{hours}H0M0S")
+        if start:
+            _sub(t_el, "EarlyStart", _dt(start, 8, 0))
+        if finish:
+            fh = 8 if milestone else 17
+            _sub(t_el, "EarlyFinish", _dt(finish, fh, 0))
+            _sub(t_el, "LateStart", _dt(start, 8, 0) if start else _dt(finish, 8, 0))
+            _sub(t_el, "LateFinish", _dt(finish, fh, 0))
     _sub(t_el, "Milestone", "1" if milestone else "0")
     _sub(t_el, "Summary", "1" if summary else "0")
-    _sub(t_el, "Critical", "0")
-    _sub(t_el, "Priority", "500")
+    _sub(t_el, "Critical", "1" if task.get("critical") else "0")
     _sub(t_el, "FixedCostAccrual", "3")
 
     constraint = task.get("constraint")
@@ -202,7 +208,7 @@ def _add_task(tasks_el: ET.Element, task: Dict[str, Any], index: int, next_task:
         if cdate:
             _sub(t_el, "ConstraintDate", _dt(cdate, 8, 0))
     else:
-        _sub(t_el, "ConstraintType", "0")  # ASAP, same as COM Manual=False
+        _sub(t_el, "ConstraintType", "0")
 
     _sub(t_el, "CalendarUID", "2" if uses_construction_calendar(task) else "1")
     _sub(t_el, "Manual", "0")
@@ -215,23 +221,33 @@ def _add_task(tasks_el: ET.Element, task: Dict[str, Any], index: int, next_task:
     if task.get("responsibility_flag"):
         _sub(t_el, "Text3", str(task.get("responsibility_flag", "")))
 
-    if (not summary) and str(task.get("predecessors") or "").strip():
-        for pid, link_type, lag in parse_predecessor(str(task.get("predecessors"))):
+    pred_raw = str(task.get("predecessors") or "").strip()
+    if pred_raw:
+        for pid, link_type, lag in parse_predecessor(pred_raw):
             link = _sub(t_el, "PredecessorLink")
             _sub(link, "PredecessorUID", str(pid))
             _sub(link, "Type", LINK_TYPE.get(link_type[:2].upper(), "1"))
-            if lag:
-                # MSPDI LinkLag is tenths of a minute; 1 working day = 4800
-                _sub(link, "LinkLag", str(int(lag) * 4800))
+            _sub(link, "CrossProject", "0")
+            _sub(link, "LinkLag", str(int(lag) * 4800))
 
 
-def build_mspdi_xml(tasks: List[Dict[str, Any]], project_title: str, project_start: Any) -> str:
+def build_mspdi_xml(
+    tasks: List[Dict[str, Any]],
+    project_title: str,
+    project_start: Any,
+    project_finish: Any = None,
+    schedule_from_start: bool = True,
+) -> str:
     root = ET.Element("Project", xmlns=NS)
     start = _ymd(project_start)
+    finish = _ymd(project_finish)
     _sub(root, "SaveVersion", "14")
     _sub(root, "Title", project_title or "")
-    _sub(root, "ScheduleFromStart", "1")
-    _sub(root, "StartDate", _dt(start, 8, 0) if start else "")
+    _sub(root, "ScheduleFromStart", "1" if schedule_from_start else "0")
+    if start:
+        _sub(root, "StartDate", _dt(start, 8, 0))
+    if finish:
+        _sub(root, "FinishDate", _dt(finish, 17, 0))
     _sub(root, "FYStartDate", "1")
     _sub(root, "CriticalSlackLimit", "0")
     _sub(root, "CurrencyDigits", "2")
@@ -255,6 +271,7 @@ def build_mspdi_xml(tasks: List[Dict[str, Any]], project_title: str, project_sta
     if start:
         _sub(root, "CurrentDate", _dt(start, 8, 0))
     _sub(root, "Autolink", "0")
+    _sub(root, "UpdateManuallyScheduledTasksWhenEditingLinks", "1")
 
     _add_calendars(root)
     tasks_el = _sub(root, "Tasks")
