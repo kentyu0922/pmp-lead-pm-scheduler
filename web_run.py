@@ -99,20 +99,8 @@ def run_from_dict(payload: Dict[str, Any]) -> Dict[str, Any]:
     holidays_pairs = _holidays.load_holiday_pairs()
     notes: list = []
 
-    # Same anchors as main.py: start → forward; target only → reverse; both → forward then deadline.
-    if start_date:
-        solve_res = solve_schedule(tasks, start_date, custom_holidays=holidays_pairs)
-        tasks_solved = solve_res["tasks"]
-        finish_date = solve_res["finish_date"]
-        if target_date:
-            finish_dt = datetime.datetime.strptime(str(finish_date)[:10], "%Y-%m-%d").date()
-            target_dt = datetime.datetime.strptime(target_date[:10], "%Y-%m-%d").date()
-            if finish_dt > target_dt:
-                days_late = (finish_dt - target_dt).days
-                return _fail(
-                    f"正推完工日 {finish_date} 晚于搬家死线 {target_date} {days_late} 天，拒绝失真排程。"
-                )
-    else:
+    # 有搬家日就倒排卡住死线；只有开工日才正排。两者都有时搬家优先（不再正排出超期表）。
+    if target_date:
         target_dt = datetime.datetime.strptime(target_date[:10], "%Y-%m-%d").date()
         safe_finish = _holidays.get_latest_client_workday_before(
             target_dt, days_before=7, holidays=holidays_raw
@@ -126,13 +114,20 @@ def run_from_dict(payload: Dict[str, Any]) -> Dict[str, Any]:
         start_date = str(solve_res["start_date"])
         tasks_solved = solve_res["tasks"]
         finish_date = solve_res["finish_date"]
-        if target_date:
-            target_dt = datetime.datetime.strptime(target_date[:10], "%Y-%m-%d").date()
-            finish_dt = datetime.datetime.strptime(str(finish_date)[:10], "%Y-%m-%d").date()
-            if (target_dt - finish_dt).days > 90:
-                notes.append(
-                    f"工期失真预警：完工日 {finish_date} 早于搬家日 {target_date} 超过 90 天。"
-                )
+        finish_dt = datetime.datetime.strptime(str(finish_date)[:10], "%Y-%m-%d").date()
+        if finish_dt > target_dt:
+            days_late = (finish_dt - target_dt).days
+            return _fail(
+                f"倒排仍无法在搬家日 {target_date} 前完工（算出 {finish_date}，超 {days_late} 天）。"
+            )
+        if (target_dt - finish_dt).days > 90:
+            notes.append(
+                f"工期失真预警：完工日 {finish_date} 早于搬家日 {target_date} 超过 90 天。"
+            )
+    else:
+        solve_res = solve_schedule(tasks, start_date, custom_holidays=holidays_pairs)
+        tasks_solved = solve_res["tasks"]
+        finish_date = solve_res["finish_date"]
 
     finish_date = max(
         (t.get("finish") for t in tasks_solved if t.get("finish")),
@@ -140,6 +135,14 @@ def run_from_dict(payload: Dict[str, Any]) -> Dict[str, Any]:
     )
     tasks_solved = compute_cpm_metrics(tasks_solved, project_end=finish_date)
     tasks_solved = annotate_tasks(tasks_solved)
+    if target_date:
+        for t in reversed(tasks_solved):
+            name = str(t.get("name") or "")
+            if "搬家公司" in name:
+                continue
+            if any(k in name for k in ("搬家", "搬迁", "正式入驻")):
+                t["constraint"] = {"type": "FNLT", "date": target_date[:10]}
+                break
     compliance_issues = _compliance.run_compliance_checks(tasks_solved, holiday_raw=holidays_raw)
     n_err = sum(1 for it in compliance_issues if it.get("level") == "error")
     if n_err:
@@ -167,7 +170,17 @@ def run_from_dict(payload: Dict[str, Any]) -> Dict[str, Any]:
         "notes": notes,
         "compliance_issues": compliance_issues,
         "tasks": tasks_solved,
-        "mspdi_xml": build_mspdi_xml(tasks_solved, project_name, start_date) if build_mspdi_xml else "",
+        "mspdi_xml": (
+            build_mspdi_xml(
+                tasks_solved,
+                project_name,
+                start_date,
+                project_finish=finish_date,
+                schedule_from_start=not bool(target_date),
+            )
+            if build_mspdi_xml
+            else ""
+        ),
     }
 
 
