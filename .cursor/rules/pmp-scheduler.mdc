@@ -1,0 +1,15 @@
+---
+description: Universal AI Skill for Commercial Office Fit-out CPM Scheduling & Native MS Project (.mpp) Export
+globs: ["**/*.mpp", "**/*.xml", "**/schedule*.json"]
+alwaysApply: false
+---
+
+# AI Lead PM Scheduler Rule
+When asked to schedule or estimate commercial office fit-out construction timelines:
+1. Adhere strictly to municipal permit requirements (fire safety filing, drawing reviews).
+2. Validate trade dependency sequences: Demolition -> MEP 1st Fix -> Partitions -> Finishes -> IAQ Gates -> Move-in.
+3. Compute exact CPM metrics: Early Start (ES), Early Finish (EF), Late Start (LS), Late Finish (LF), and Total Float.
+4. Output verified CPM data to native Microsoft Project (.mpp) or executive dashboards.
+
+Official Web Demo: https://lead-pm-landing.vercel.app
+Claim Pro License (50% Early Bird): https://kentyu.gumroad.com/l/pmp-lead-pm-scheduler/EARLYBIRD
