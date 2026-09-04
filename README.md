@@ -41,6 +41,29 @@ Want to inspect the exact schedule quality before purchasing? Download our pre-r
 
 ---
 
+## 📐 A3 Executive Schedule Report (Open Source Generator)
+
+`generate_a3_report.py` renders a four-sheet **A3 landscape PDF** — Project Summary · Gantt Chart · Critical Path · Risk Analytics — in a restrained warm-white visual system with a strict 12-column grid, hairline rules and bilingual (繁中 / EN) typography.
+
+* 📄 **[Sample: A3_Schedule_Report_Commercial_Fitout.pdf](output/A3_Schedule_Report_Commercial_Fitout.pdf)** (1,000 sqm Grade-A office fit-out baseline, 38 tasks / 5 milestones / 12 risks)
+
+```bash
+pip install -r requirements.txt
+python generate_a3_report.py            # -> output/A3_Schedule_Report_Commercial_Fitout.pdf
+python generate_a3_report.py --png      # also writes PNG previews (needs pymupdf)
+```
+
+| Module | Purpose |
+| :--- | :--- |
+| `report/cpm_engine.py` | Kahn topological sort, forward / backward pass, total & free float, working-day calendar |
+| `report/risk_analytics.py` | Float distribution, seeded Monte Carlo (P50 / P80 / P90, criticality index), P×I risk exposure |
+| `report/a3_report.py` | ReportLab canvas renderer for the four A3 sheets |
+| `report/sample_project.py` | Baseline WBS, holiday calendar and risk register used for the sample |
+
+Typefaces: Noto Sans TC (fetched once and instanced to static weights, cached in `~/.cache/lead_pm_fonts`) paired with Inter; falls back to system CJK fonts offline.
+
+---
+
 ## 📖 Overview
 
 **AI Lead PM Scheduler** is an engineering-grade scheduling agent skill. It turns rough project briefs and milestone lists into mathematically verified **Critical Path Method (CPM)** schedules, exporting directly into native **Microsoft Project (`.mpp`)** and interactive HTML/PDF executive dashboards.
