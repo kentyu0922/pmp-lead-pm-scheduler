@@ -1,0 +1,142 @@
+{
+  "version": "0.1.0-v0",
+  "description": "Quantity Engine v0 benchmark library. Derives BOQ-style quantities (ceiling_area, flooring_area, partition_length, partition_area, drywall/glass split, paint_area) from gross fit-out area + building grade (+ optional layout) when no measured takeoff exists. Deterministic: formulas live in core/quantity_engine.py, every number lives here (single source, same rule as holidays / city permits / productivity rates). All values are uncalibrated office fit-out rules of thumb for mainland China Grade A/B/C office buildings and MUST be replaced by measured BOQ when available.",
+  "quantity_source": "derived_from_area",
+  "confidence": "low",
+  "default_grade": "A",
+  "default_layout": "standard",
+  "grade_aliases": {
+    "a": "A", "grade a": "A", "grade_a": "A", "gradea": "A", "甲级": "A", "a级": "A", "a类": "A",
+    "b": "B", "grade b": "B", "grade_b": "B", "gradeb": "B", "乙级": "B", "b级": "B", "b类": "B",
+    "c": "C", "grade c": "C", "grade_c": "C", "gradec": "C", "丙级": "C", "c级": "C", "c类": "C"
+  },
+  "parameters": {
+    "net_ceiling_ratio": {
+      "unit": "m2 ceiling / m2 gross",
+      "description": "Share of gross fit-out area that receives a new suspended ceiling. Deducts core, risers, shafts, exposed-soffit zones (pantry/BOH/feature open ceiling)."
+    },
+    "net_floor_ratio": {
+      "unit": "m2 floor / m2 gross",
+      "description": "Share of gross area that receives new floor finish (carpet tile / raised floor / stone / LVT). Deducts cores, columns, shafts, wet areas retained from base build."
+    },
+    "partition_density_m_per_m2": {
+      "unit": "m partition / m2 gross",
+      "description": "Linear metres of new internal partition (drywall + glazed) per m2 gross. Lower for open-plan trading floors, higher for cellular offices."
+    },
+    "partition_height_m": {
+      "unit": "m",
+      "description": "Average partition height. Full-height (to slab) drywall for acoustic separation in Grade A; ceiling-height partitions in lower grades."
+    },
+    "glass_partition_share": {
+      "unit": "fraction of partition length",
+      "description": "Share of partition length that is framed/frameless glazing rather than drywall. Glazing is neither boarded nor painted."
+    },
+    "core_wall_density_m_per_m2": {
+      "unit": "m wall / m2 gross",
+      "description": "Linear metres of existing base-build wall (core, shaft, perimeter columns) that receive skim + paint in the fit-out."
+    },
+    "painted_face_fraction": {
+      "unit": "fraction",
+      "description": "Share of a drywall face that is actually painted after deducting doors, openings, skirting, wall panelling / vinyl / feature finishes."
+    },
+    "painted_ceiling_share": {
+      "unit": "fraction of ceiling_area",
+      "description": "Share of ceiling area that is painted gypsum bulkhead / plasterboard rather than unpainted lay-in tile."
+    }
+  },
+  "grades": {
+    "A": {
+      "label_en": "Grade A office (MNC HQ standard)",
+      "label_zh": "甲级办公楼 (外企总部标准)",
+      "params": {
+        "net_ceiling_ratio": 0.85,
+        "net_floor_ratio": 0.92,
+        "partition_density_m_per_m2": 0.30,
+        "partition_height_m": 3.5,
+        "glass_partition_share": 0.35,
+        "core_wall_density_m_per_m2": 0.10,
+        "painted_face_fraction": 0.85,
+        "painted_ceiling_share": 0.30
+      },
+      "assumptions": [
+        "net_ceiling_ratio 0.85 equals the legacy suspended_ceiling bridge ratio, so Grade A + default layout reproduces the PR #3 pilot quantity exactly.",
+        "Slab-to-slab 4.0-4.5 m, raised floor 100-150 mm, finished ceiling 2.8-3.0 m; meeting-room partitions run full height to slab for acoustics -> 3.5 m average partition height.",
+        "Open-plan workstation ratio high, but many glazed meeting rooms / phone booths -> 0.30 m/m2 partition density with 35% glazing.",
+        "More gypsum bulkheads and feature ceilings than lower grades -> 30% of ceiling area painted.",
+        "More wall panelling / acoustic finishes in front-of-house -> only 85% of drywall face is painted."
+      ]
+    },
+    "B": {
+      "label_en": "Grade B office (domestic corporate standard)",
+      "label_zh": "乙级办公楼 (国内企业标准)",
+      "params": {
+        "net_ceiling_ratio": 0.85,
+        "net_floor_ratio": 0.92,
+        "partition_density_m_per_m2": 0.35,
+        "partition_height_m": 3.2,
+        "glass_partition_share": 0.25,
+        "core_wall_density_m_per_m2": 0.10,
+        "painted_face_fraction": 0.90,
+        "painted_ceiling_share": 0.20
+      },
+      "assumptions": [
+        "Slab-to-slab 3.8-4.0 m, ceiling-height or part-height partitions -> 3.2 m average.",
+        "More cellular offices, less glazing (25%) -> 0.35 m/m2 partition density.",
+        "Mostly lay-in mineral fibre ceiling with 20% painted gypsum bulkheads."
+      ]
+    },
+    "C": {
+      "label_en": "Grade C office (budget / back-office)",
+      "label_zh": "丙级办公楼 (经济型/后台办公)",
+      "params": {
+        "net_ceiling_ratio": 0.80,
+        "net_floor_ratio": 0.92,
+        "partition_density_m_per_m2": 0.40,
+        "partition_height_m": 3.0,
+        "glass_partition_share": 0.10,
+        "core_wall_density_m_per_m2": 0.10,
+        "painted_face_fraction": 0.95,
+        "painted_ceiling_share": 0.10
+      },
+      "assumptions": [
+        "Some back-of-house left with exposed / existing soffit -> net_ceiling_ratio 0.80.",
+        "Cellular layout with painted drywall rather than glazing -> 0.40 m/m2 partition density, 10% glazing.",
+        "Minimal bulkheads -> 10% of ceiling painted; almost the whole drywall face is painted (95%)."
+      ]
+    }
+  },
+  "layouts": {
+    "open_plan": {
+      "label": "Open-plan / trading floor",
+      "partition_density_multiplier": 0.8
+    },
+    "standard": {
+      "label": "Standard mix of open plan and meeting rooms",
+      "partition_density_multiplier": 1.0
+    },
+    "cellular": {
+      "label": "Cellular offices / clinics / legal",
+      "partition_density_multiplier": 1.3
+    }
+  },
+  "quantities": {
+    "ceiling_area":           {"unit": "m2", "formula": "gross_area * net_ceiling_ratio"},
+    "flooring_area":          {"unit": "m2", "formula": "gross_area * net_floor_ratio"},
+    "partition_length":       {"unit": "m",  "formula": "gross_area * partition_density_m_per_m2 * layout.partition_density_multiplier"},
+    "partition_area":         {"unit": "m2", "formula": "partition_length * partition_height_m  (single-face wall surface, standard stud-partition measurement)"},
+    "drywall_partition_area": {"unit": "m2", "formula": "partition_area * (1 - glass_partition_share)"},
+    "glass_partition_area":   {"unit": "m2", "formula": "partition_area * glass_partition_share"},
+    "paint_area":             {"unit": "m2", "formula": "drywall_partition_area * 2 faces * painted_face_fraction + gross_area * core_wall_density_m_per_m2 * partition_height_m * painted_face_fraction + ceiling_area * painted_ceiling_share"}
+  },
+  "sanity_ranges_per_gross_m2": {
+    "description": "Engine self-check: derived quantity / gross_area must fall inside these bands or a warning is emitted (never silently). Bands bracket the A/B/C benchmarks with any layout modifier applied.",
+    "ceiling_area":           [0.70, 0.95],
+    "flooring_area":          [0.85, 0.98],
+    "partition_length":       [0.15, 0.60],
+    "partition_area":         [0.40, 2.20],
+    "drywall_partition_area": [0.20, 2.20],
+    "glass_partition_area":   [0.00, 0.90],
+    "paint_area":             [1.00, 3.60]
+  },
+  "rounding": "round to 0.1 unit after all multiplications (matches legacy bridge round(area*ratio, 1))"
+}
