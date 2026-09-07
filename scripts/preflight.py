@@ -44,7 +44,7 @@ def run_preflight(verbose: bool = True) -> list:
 
     # 2) 核心模块可导入（含 v3 收敛新增的合规/日历/报建模块）
     for mod in ["core.solver_engine", "core.mpp_renderer",
-                "core.compliance", "core.holidays", "core.productivity", "experts.permit_expert"]:
+                "core.compliance", "core.holidays", "core.productivity", "core.optimizer", "experts.permit_expert"]:
         try:
             _load(mod)
             if verbose:

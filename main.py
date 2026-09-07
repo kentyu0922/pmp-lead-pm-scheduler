@@ -49,6 +49,8 @@ def main() -> None:
                         help="[试点] 天花吊顶(suspended_ceiling)工期改走 工程量→生产率→工期 公式路径；其余节点仍用模板硬编码工期")
     parser.add_argument("--ceiling_area", type=float, default=None,
                         help="[试点] 实测吊顶工程量(㎡)。缺省按 --area × 净顶面积比 推导(置信度降级)")
+    parser.add_argument("--optimizer", action="store_true", default=False,
+                        help="[v0] 只读优化器：输出关键路径/浮时摘要 + 可解释快速跟进(FS→SS)建议到 <output>_optimizer.json；不改写基线排程")
 
     # ③ x ④ -> 4 套模板键映射
     TEMPLATE_MAP = {
@@ -248,6 +250,25 @@ def main() -> None:
                 f"{r['start']}→{r['finish']}, critical={r['critical']}"
             )
         logger.info(f"  -> [productivity] 可解释字段已落盘: {prod_out}")
+
+    # v0 优化器（只读）：关键路径/浮时摘要 + 快速跟进建议。建议逐条在深拷贝上重解校验；
+    # tasks_solved 与交付物（mpp/pdf/pptx）保持基线不变，只落盘 <output>_optimizer.json。
+    if args.optimizer:
+        logger.info("Step 3.8: [v0] 只读优化器：关键路径/浮时摘要 + 快速跟进建议...")
+        try:
+            from core.optimizer import analyze_schedule, render_report
+            opt_result = analyze_schedule(tasks_solved, start_date_str or None, custom_holidays=holidays_pairs)
+            opt_out = os.path.splitext(output_path)[0] + "_optimizer.json"
+            os.makedirs(os.path.dirname(opt_out), exist_ok=True)
+            with open(opt_out, "w", encoding="utf-8") as f:
+                json.dump({"project_name": args.project_name, "inputs": {"city": args.city, "area": args.area, "cost": args.cost,
+                                                                          "delivery": delivery_val, "bidding": bidding_val},
+                           **opt_result}, f, ensure_ascii=False, indent=2)
+            for line in render_report(opt_result).splitlines():
+                logger.info(f"  {line}")
+            logger.info(f"  -> [optimizer] 建议未应用到基线；摘要与建议已落盘: {opt_out}")
+        except Exception as ex:
+            logger.warning(f"  -> [optimizer] 跳过（不影响排程交付）: {ex}")
 
     mpp_written = False
     if args.no_mpp:
