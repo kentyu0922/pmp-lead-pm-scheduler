@@ -14,6 +14,17 @@ Append one block per real schedule run. Newest at top.
 - Follow-up open:
 ```
 
+## 2026-09-07 — Hardening: lazy/guarded Windows-only deps (Linux, --no_mpp)
+- Inputs: city=上海, area=1500, cost=320, delivery=DBB, bidding=invite, start=2026-08-28; run with `--no_mpp`, with `--no_mpp --productivity_pilot`, and once without `--no_mpp` to exercise the COM failure path
+- Result: PASS (tests/test_v3_basics.py 76/76 — previously crashed at test 8 `import main` on Linux; tests/test_productivity_pilot.py 58/58; new tests/test_no_win32_import.py 34/34; preflight PASS)
+- Issues:
+  1. Pre-existing (logged in the pilot entry below): `exporters/mpp_renderer.py` imported `pywintypes`, `exporters/export_pdf.py` imported `pythoncom`/`win32com` and registered `C:\Windows\Fonts\msyh.ttc`, `core/msp_session.py` imported `win32com`/`pythoncom` — all at module import, so `python main.py --no_mpp` and `import main` died with `ModuleNotFoundError: pywintypes` on non-Windows despite the SKILL contract.
+  2. `requirements.txt` pinned `pywin32` unconditionally (no Linux/mac wheel → `pip install -r` fails) and omitted `reportlab`, which the PDF path requires.
+- Root cause: exporters were written on the Windows+MSP golden path; COM/font side effects lived at import time instead of at call time.
+- Change made (file): `core/msp_session.py` (guarded import, `WIN32_AVAILABLE`, `MSProjectUnavailableError`, `require_win32()`; `com_available()` returns False), `exporters/mpp_renderer.py` (lazy `_com_time` → `pywintypes.Time`; `build_mpp` calls `require_win32()` before any side effect), `exporters/export_pdf.py` (COM imports inside `read_tasks`; `_ensure_fonts()` resolves msyh.ttc → system CJK TTF → reportlab CID `STSong-Light`, `PMP_PDF_FONT` override), `main.py` (COM failure logged at error level with `--no_mpp` hint; honest SUCCESS text unchanged), `requirements.txt` (`pywin32; sys_platform == "win32"`, `reportlab`), `tests/test_no_win32_import.py`, `SKILL.md`
+- Duration / productivity / template logic untouched: pilot off → finish 2027-05-07, 74 critical; pilot on → task 61 22d, finish 2027-05-18 (identical to the pilot entry below).
+- Follow-up open: Windows+MSP golden-path re-run to confirm `_com_time`/`require_win32` are transparent when pywin32 is present (they are pure pass-throughs, not exercised here); `exporters/export_pdf.DEFAULT_MPP` still points at `exporters/output_mpp/` (pre-existing, CLI-only default, not touched).
+
 ## 2026-09-07 — Duration pilot: suspended_ceiling quantity→productivity→duration (Linux, --no_mpp)
 - Inputs: city=上海, area=1500, cost=320, delivery=DBB, bidding=invite, start=2026-08-28; run twice, without / with `--productivity_pilot`
 - Result: PASS (tests/test_v3_basics.py 76/76; tests/test_productivity_pilot.py 58/58; preflight PASS; compliance 0 error both runs)
