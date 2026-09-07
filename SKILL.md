@@ -63,17 +63,20 @@ Do not run `dev_tools/`. Do not call COM except through `exporters/mpp_renderer.
 
 City or holiday edits go in JSON only, then bump `metadata.last_verified`.
 
-## Duration pilot — quantity → productivity → duration (one activity type)
+## Duration engine — quantity → productivity → duration (opt-in)
 
-Default off. Template hard-coded durations remain the path for every task. Opt-in bridge:
+Default off. Template hard-coded durations remain the path for every task. Activity types in the rate library: `suspended_ceiling`, `partition_framing`, `flooring`, `painting`. Opt-in bridge:
 
-- `--productivity_pilot` — the `suspended_ceiling` WBS task (name matches `天花吊顶龙骨`) is re-timed as `quantity ÷ (rate × crew) × factors`, ceil to integer workdays, floored at `min_duration_days`. Everything else keeps its template duration.
-- `--ceiling_area <㎡>` — measured ceiling takeoff. Without it, quantity = `--area × 0.85` and confidence is downgraded (`derived_from_area`).
-- Rates, crew defaults, factor tables and the template keyword bridge live only in `config/productivity_rates.json`. Tasks in any task list may also carry `activity_type` + `quantity` (+ `crew_size`, `factors`) directly.
-- Explainable fields are attached to the task (`productivity`, `duration_method`) and written to `output_mpp/<output>_productivity.json`: quantity, unit, productivity_rate, crew_size, factors, calculated_duration, final_duration, template_duration, confidence + reasons.
-- Unknown activity type, missing quantity or bad factor key → warning, template duration kept. Never raises inside the pipeline.
+- `--productivity_pilot` — tagged WBS tasks are re-timed as `quantity ÷ (rate × crew) × factors`, ceil to integer workdays, floored at `min_duration_days`. Everything else keeps its template duration.
+- `--pilot_activities <a,b,…|all>` — which types to bridge onto the legacy template (keyword match: `天花吊顶龙骨` / `隔墙轻钢龙骨` / `地板/地砖/地毯` / `乳胶漆`). Default `suspended_ceiling` only, so the flag alone behaves exactly as the v4.2 pilot.
+- `--quantities type=㎡,…` — measured takeoffs per type (`--ceiling_area` is the alias for `suspended_ceiling`). Without one, quantity = `--area × ratio` from the bridge and confidence is downgraded (`derived_from_area`). Quantity derivation beyond that ratio is out of scope here.
+- `--rate_level low|typical|high` — pick a rate table column. `low` = pessimistic productivity (longest duration), `typical` = default, `high` = optimistic. A task may also pin `rate_level`. Only these configured columns exist; there is no way to pass a number.
+- Rates (`rates_per_worker_day`), crew defaults, factor tables and the keyword bridges live only in `config/productivity_rates.json`. The library is validated on load (all three levels present, non-decreasing, bridge factors exist) and fails loudly. Tasks in any task list may also carry `activity_type` + `quantity` (+ `crew_size`, `factors`, `rate_level`) directly.
+- Never invent a rate or a duration. Task-level `productivity_rate` / `rate_per_worker_day` keys are ignored with a warning; the model may choose an activity type, quantity, crew, factor key and rate level, and nothing else. Rate calibration is a JSON edit plus version bump.
+- Explainable fields are attached to the task (`productivity`, `duration_method`) and written to `output_mpp/<output>_productivity.json`: quantity, unit, productivity_rate, rate_level, rate_table, crew_size, factors, calculated_duration, final_duration, duration_by_rate_level, template_duration, confidence + reasons.
+- Unknown activity type, missing quantity, bad factor key or unknown rate level → warning, template duration kept. Never raises inside the pipeline.
 
-Tests: `python tests/test_productivity_pilot.py` (formula fixture 1200㎡ / 10㎡·worker-day / crew 6 / complex 1.2 → 24d; all four templates unchanged with the pilot off; verification gate with it on).
+Tests: `python tests/test_productivity_pilot.py` (ceiling fixture 1200㎡ / 10㎡·worker-day / crew 6 / complex 1.2 → 24d; templates unchanged with the pilot off; gate with it on) and `python tests/test_productivity_engine.py` (partition 900㎡/15/6 → 10d, flooring 1350㎡/25/5 → 11d, painting 2700㎡/35/6 → 13d; rate-level ranges; config-only guard; four-trade pipeline through the verification gate).
 
 ## Verification gate
 

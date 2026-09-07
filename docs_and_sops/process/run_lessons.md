@@ -14,6 +14,19 @@ Append one block per real schedule run. Newest at top.
 - Follow-up open:
 ```
 
+## 2026-09-07 — V5-A: productivity engine generalized (partition_framing / flooring / painting + suspended_ceiling; Linux, --no_mpp)
+- Inputs: city=上海, area=1500, cost=320, delivery=DBB, bidding=invite, start=2026-08-28; four runs: pilot off / `--productivity_pilot` (default = ceiling only) / `--pilot_activities all` / `--pilot_activities all --rate_level low --quantities partition_framing=1200,flooring=1000 --ceiling_area 900`
+- Result: PASS (tests/test_productivity_pilot.py 59/59; tests/test_productivity_engine.py 95/95; preflight unchanged — only the pre-existing `pywintypes` import item; compliance 0 error in all four runs)
+- Issues:
+  1. Pilot off → finish 2027-05-07, 74 critical nodes (identical to the PR #3 baseline). Ceiling-only → task 61 22d, finish 2027-05-18 (identical to PR #3, so the rate-table refactor did not move the pilot number).
+  2. `all` → 4 formula nodes, every other node duration identical to the legacy run: #57 隔墙轻钢龙骨骨架搭设 partition_framing 900㎡ ÷ (15×6) = 10d (template 8d); #61 suspended_ceiling 1275㎡ → 22d (10d); #65 天花封石膏板与墙顶乳胶漆饰面 painting 2700㎡ ÷ (35×6) × scope=with_ceiling_board 1.5 = 19.29 → 20d (9d); #66 架空防静电地板/地砖/地毯铺设 flooring 1350㎡ ÷ (25×5) = 10.8 → 11d (6d). Finish 2027-06-02. Confidence low everywhere (derived quantity + default crew).
+  3. `--rate_level low` + measured quantities → 20 / 19 / 27 / 14d, finish 2027-06-18; each `duration_by_rate_level` range is echoed in the sidecar JSON and the explain log.
+  4. Formula durations run 1.3–2.4× longer than the area-calibrated template values at 1500㎡. The template values were tuned as composite crew allowances; the rate tables are industry rules of thumb pending field calibration. Not tuned here — that is a JSON edit once takeoffs exist.
+  5. Linux run still needs a test-only shim for `pywintypes` / `win32com` / `msyh.ttc` (card 1). No `.mpp` produced or claimed.
+- Root cause: PR #3 hard-wired the engine to a single scalar rate; low/typical/high tables and multi-type bridging were needed before more trades could use the same formula path.
+- Change made (file): `config/productivity_rates.json` (v0.2.0), `core/productivity.py`, `main.py` (`--pilot_activities`, `--quantities`, `--rate_level`), `tests/test_productivity_engine.py`, `tests/test_productivity_pilot.py` (scope assertions only), `SKILL.md`
+- Follow-up open: calibrate the four rate tables and area ratios from real takeoffs; quantity derivation (card 3); SS/lag between the framing → boarding → paint chain (card 4); Windows+MSP e2e with `--pilot_activities all` (formula only changes integer durations, `build_mpp` path untouched).
+
 ## 2026-09-07 — Duration pilot: suspended_ceiling quantity→productivity→duration (Linux, --no_mpp)
 - Inputs: city=上海, area=1500, cost=320, delivery=DBB, bidding=invite, start=2026-08-28; run twice, without / with `--productivity_pilot`
 - Result: PASS (tests/test_v3_basics.py 76/76; tests/test_productivity_pilot.py 58/58; preflight PASS; compliance 0 error both runs)
