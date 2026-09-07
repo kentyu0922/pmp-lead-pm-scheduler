@@ -262,6 +262,7 @@ def main() -> None:
                 calendar_exceptions=holidays_raw,
                 output_mpp_path=output_path
             )
+            mpp_written = os.path.exists(output_path)
         except Exception as mpp_err:
             logger.warning(f"  -> [MPP COM 渲染] 跳过或COM不可用: {mpp_err}")
 
@@ -292,7 +293,11 @@ def main() -> None:
         logger.warning(f"  -> [PPTX 演示] 自动导出跳过: {ex}")
     
     logger.info(f"==================================================")
-    logger.info(f"SUCCESS: 调度完成！物理文件已通过 100% 审计落地: {output_path}")
+    if mpp_written:
+        logger.info(f"SUCCESS: 调度完成！物理文件已通过 100% 审计落地: {output_path}")
+    else:
+        # SKILL.md: never claim an .mpp was written when it was not (--no_mpp or COM unavailable)
+        logger.info(f"SUCCESS: 调度完成！CPM 解算与合规审计通过；未生成 .mpp（--no_mpp 或无 MS Project COM），交付物见 {os.path.dirname(output_path)} 下的 .pdf/.pptx")
 
 if __name__ == "__main__":
     main()
