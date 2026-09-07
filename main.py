@@ -29,6 +29,8 @@ from core.calibration import calibrate_durations, validate_complex_construction
 from core.task_utils import clean_procurement_terminology, renumber_tasks_contiguously, fold_exempt_construction_permit
 # v4.2 pilot: quantity → productivity → duration for ONE activity type (suspended_ceiling); templates untouched
 from core.productivity import apply_productivity_durations, tag_legacy_pilot_tasks, productivity_summary
+# V5-B Quantity Engine v0: benchmark quantities (ceiling/partition/flooring/paint) from area + grade when no BOQ
+from core.quantity_engine import derive_quantities, quantity_table
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="PMP Lead PM Scheduler - 主总调度器 (Audit-Hardened Master Orchestrator)")
@@ -48,7 +50,13 @@ def main() -> None:
     parser.add_argument("--productivity_pilot", action="store_true", default=False,
                         help="[试点] 天花吊顶(suspended_ceiling)工期改走 工程量→生产率→工期 公式路径；其余节点仍用模板硬编码工期")
     parser.add_argument("--ceiling_area", type=float, default=None,
-                        help="[试点] 实测吊顶工程量(㎡)。缺省按 --area × 净顶面积比 推导(置信度降级)")
+                        help="[试点] 实测吊顶工程量(㎡)。缺省由工程量引擎按 --area × --grade 基准推导(置信度降级)")
+    parser.add_argument("--grade", type=str, default=None,
+                        help="[工程量引擎] 楼宇等级 A|B|C (亦接受 '甲级'/'Grade A')。缺省 A。仅在 --productivity_pilot / --derive_quantities 时生效")
+    parser.add_argument("--layout", type=str, default=None, choices=["open_plan", "standard", "cellular"],
+                        help="[工程量引擎] 平面形态，影响隔墙密度。缺省 standard")
+    parser.add_argument("--derive_quantities", action="store_true", default=False,
+                        help="[工程量引擎] 无 BOQ 时按基准推导 ceiling/partition/flooring/paint 工程量并落盘 <output>_quantities.json；不改变任何工期，除非同时开启 --productivity_pilot")
 
     # ③ x ④ -> 4 套模板键映射
     TEMPLATE_MAP = {
@@ -139,14 +147,32 @@ def main() -> None:
     tasks = calibrate_durations(tasks, permit_info, args.area, template_base_area, args.addons, cost_10k_rmb=args.cost, log=logger)
     validate_complex_construction(tasks, args.area, args.addons, log=logger)
 
+    # 4.4 工程量引擎 v0（V5-B）：无 BOQ 时按 面积 × 等级基准 推导 ceiling/partition/flooring/paint 工程量。
+    #     仅在 --derive_quantities 或 --productivity_pilot 时运行；默认关闭，输出与 v4.1 完全一致。
+    #     引擎只产出数字 + 公式，不改工期；工期变化只经由下方试点开关。
+    derived_q = None
+    if args.derive_quantities or args.productivity_pilot:
+        logger.info("Step 2.85: [工程量引擎 v0] 按面积/等级基准推导工程量 (无 BOQ)...")
+        try:
+            derived_q = derive_quantities(args.area, grade=args.grade, layout=args.layout)
+        except ValueError as qe:
+            logger.error(f"  -> [quantity] 工程量引擎输入无效: {qe}")
+            raise SystemExit(f"用法: --grade A|B|C --layout open_plan|standard|cellular ({qe})")
+        for line in quantity_table(derived_q):
+            logger.info(f"  -> {line}")
+        for w in derived_q.get("warnings", []):
+            logger.warning(f"  -> [quantity] {w}")
+
     # 4.5 工程量→生产率→工期 试点（activity_type 开关）。默认关闭：模板节点无 activity_type，
     #     apply_productivity_durations 为空操作，输出与 v4.1 完全一致。开启后仅天花吊顶节点改走公式。
+    #     工程量优先级：--ceiling_area 实测 → 工程量引擎 ceiling_area → 旧桥接比例 area×0.85。
     if args.productivity_pilot:
         logger.info("Step 2.9: [试点] 工程量→生产率→工期 (suspended_ceiling)...")
-        tagged = tag_legacy_pilot_tasks(tasks, args.area, quantity_override=args.ceiling_area, log=logger)
+        tagged = tag_legacy_pilot_tasks(tasks, args.area, quantity_override=args.ceiling_area,
+                                        derived_quantities=derived_q, log=logger)
         if not tagged:
             logger.warning("  -> [productivity] 模板中未命中任何天花吊顶节点，试点未生效（模板工期照旧）。")
-    tasks = apply_productivity_durations(tasks, log=logger)
+    tasks = apply_productivity_durations(tasks, log=logger, derived_quantities=derived_q)
 
     if tasks:
         tasks[0]["name"] = args.project_name
@@ -229,6 +255,15 @@ def main() -> None:
 
     output_path = os.path.join(BASE_DIR, "output_mpp", args.output)
     proj_start_dt = datetime.datetime.strptime(start_date_str, "%Y-%m-%d") if start_date_str else datetime.date.today()
+
+    # 工程量引擎可解释字段落盘（仅当引擎运行过）：<output>_quantities.json
+    if derived_q is not None:
+        q_out = os.path.splitext(output_path)[0] + "_quantities.json"
+        os.makedirs(os.path.dirname(q_out), exist_ok=True)
+        with open(q_out, "w", encoding="utf-8") as f:
+            json.dump({"project_name": args.project_name, "city": args.city, "area_sqm": args.area,
+                       "quantity_engine": derived_q}, f, ensure_ascii=False, indent=2)
+        logger.info(f"  -> [quantity] 基准工程量已落盘: {q_out}")
 
     # 试点可解释字段落盘（仅当存在公式路径节点）：<output>_productivity.json
     prod_rows = productivity_summary(tasks_solved)
