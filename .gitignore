@@ -1,4 +1,34 @@
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+
+# Output directories & test residues
+output_mpp/*
+!output_mpp/.gitkeep
+!output_mpp/README.md
+
+# Log files
+*.log
+*.log.*
+
+# Virtual environments
 .venv/
-output/*_p*.png
+venv/
+env/
+ENV/
+build/
+dist/
+*.egg-info/
+
+# Editor & OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Scratch and temporary files
+scratch/
+*.tmp

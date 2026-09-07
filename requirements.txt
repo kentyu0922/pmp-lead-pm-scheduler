@@ -1,4 +1,8 @@
-reportlab>=4.0
-numpy>=1.24
-fonttools>=4.40
-pymupdf>=1.24   # optional: --png previews
+# 核心依赖包
+# 1. MS Project COM 自动化（Windows-only，物理 .mpp 导出必需）
+pywin32>=306
+
+# 2. 高层汇报级单页 PPTX 演示文稿生成
+python-pptx>=1.0.2
+Pillow>=10.0.0
+lxml>=5.0.0

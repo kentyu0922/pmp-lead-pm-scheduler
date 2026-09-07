@@ -1,0 +1,10 @@
+[
+  { "id": 1, "name": "Phase 1 设计阶段", "outline_level": 1, "duration": 0, "predecessors": "" },
+  { "id": 2, "name": "设计深化", "outline_level": 3, "duration": 10, "predecessors": "" },
+  { "id": 3, "name": "图纸送审", "outline_level": 3, "duration": 5, "predecessors": "2" },
+  { "id": 4, "name": "Phase 2 施工阶段", "outline_level": 1, "duration": 0, "predecessors": "" },
+  { "id": 5, "name": "进场开工里程碑", "outline_level": 3, "duration": 0, "predecessors": "3", "milestone": true },
+  { "id": 6, "name": "主体施工", "outline_level": 3, "duration": 20, "predecessors": "5", "work_weekend": true },
+  { "id": 7, "name": "系统调试", "outline_level": 3, "duration": 8, "predecessors": "6" },
+  { "id": 8, "name": "竣工验收里程碑", "outline_level": 3, "duration": 0, "predecessors": "7", "milestone": true }
+]
