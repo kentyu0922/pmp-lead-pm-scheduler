@@ -90,6 +90,8 @@ Before calling the job done:
 
 On failure — fix and regenerate. Do not deliver a known-bad file.
 
+Gate 4 is automated, not manual-only: `python tests/test_exempt_fold_gate4.py` (Suzhou 280㎡ / 80万 / DB + invite / start 2026-11-02 — permit phase, application and 正式取得施工许可证 milestone folded; property review, 图审 and fire path retained; Site Takeover rewired to 图审 + 物业送审; compliance 0 error; all four templates; non-exempt control keeps the permit milestone). `scripts/preflight.py` runs the same fold as a smoke gate.
+
 ## Failure modes
 
 | Situation | Behavior |

@@ -14,6 +14,14 @@ Append one block per real schedule run. Newest at top.
 - Follow-up open:
 ```
 
+## 2026-09-07 — Gate4 exempt fold into the automated suite (Linux, no COM)
+- Inputs: fixture = Suzhou 280㎡, 80万, DB + invite, start=2026-11-02 (run_lessons Case 2, previously manual QA only); non-exempt control = Suzhou 1000㎡/250万 same template
+- Result: PASS (tests/test_exempt_fold_gate4.py 90/90; tests/test_productivity_pilot.py 58/58 unchanged; preflight Gate4 step OK — only pre-existing `pywintypes` import fails on Linux)
+- Issues: none in fold semantics. Locked as-is: exactly 3 nodes fold per template (施工许可证办理 phase summary, 政府施工许可证申报, [M] 正式取得施工许可证); 物业 / 图审 / 消防 node counts unchanged; Site Takeover predecessors rewired to 图审合格证 + 物业送审 (chained expansion keeps parent suffix, drops removed edge's lag, dedups); no dangling ids; idempotent; `is_exempt=False` returns the same list. Thresholds are strict `<` (300㎡/80万 and 280㎡/100万 are not exempt).
+- Root cause: Gate4 lived only in SKILL.md checklist + a hand-run case; nothing in `tests/` or preflight asserted fold behavior, so a regression would ship silently.
+- Change made (file): `tests/test_exempt_fold_gate4.py` (new), `scripts/preflight.py` (step 3.5 fold smoke gate), `SKILL.md` (Gate 4 test pointer)
+- Follow-up open: no CI runner exists in the repo; the suite is `python tests/*.py` + `python scripts/preflight.py`. Adding CI is blocked on the pywintypes card (`tests/test_v3_basics.py` and preflight cannot pass on non-Windows until then).
+
 ## 2026-09-07 — Duration pilot: suspended_ceiling quantity→productivity→duration (Linux, --no_mpp)
 - Inputs: city=上海, area=1500, cost=320, delivery=DBB, bidding=invite, start=2026-08-28; run twice, without / with `--productivity_pilot`
 - Result: PASS (tests/test_v3_basics.py 76/76; tests/test_productivity_pilot.py 58/58; preflight PASS; compliance 0 error both runs)
