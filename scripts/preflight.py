@@ -44,7 +44,8 @@ def run_preflight(verbose: bool = True) -> list:
 
     # 2) 核心模块可导入（含 v3 收敛新增的合规/日历/报建模块）
     for mod in ["core.solver_engine", "core.mpp_renderer",
-                "core.compliance", "core.holidays", "core.productivity", "experts.permit_expert"]:
+                "core.compliance", "core.holidays", "core.productivity", "core.dependency_engine",
+                "experts.permit_expert"]:
         try:
             _load(mod)
             if verbose:
@@ -64,6 +65,17 @@ def run_preflight(verbose: bool = True) -> list:
                 print(f"[preflight] 城市免办限额库 OK：{len(cities)} 城 + 兜底默认")
     except Exception as e:
         issues.append(f"config/city_permit.json 加载失败: {e}")
+
+    # 2.6) 依赖引擎 v0 规则表可加载且结构合法（外置单源）
+    try:
+        DE = _load("core.dependency_engine")
+        rules = DE.load_dependency_rules()
+        if not rules.get("rules"):
+            issues.append("config/dependency_rules.json 无规则条目")
+        elif verbose:
+            print(f"[preflight] 分区依赖规则表 OK：{len(rules['rules'])} 条 SS+lag 规则 (v{rules.get('version')})")
+    except Exception as e:
+        issues.append(f"config/dependency_rules.json 加载/校验失败: {e}")
 
     # 3) 最小正向解算
     try:

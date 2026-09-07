@@ -58,6 +58,19 @@ GOV_APPROVAL_KEYWORDS = {"施工许可证", "许可证办理", "图审合格证"
 # 预编译前置任务正则表达式
 PREDECESSOR_REGEX = re.compile(r'^(\d+)(FS|FF|SS|SF)?([+-]\d+)?')
 
+
+def parse_predecessor_token(part: str) -> Optional[Tuple[int, str, int]]:
+    """Parse one predecessor token ("57", "58SS+3", "63FF", "5FS-2d") → (id, type, lag).
+
+    Same normalisation as the forward pass (upper-case, strip spaces and day suffixes) so
+    the backward pass in compute_cpm_metrics sees exactly the links solve_schedule used.
+    """
+    clean_part = str(part).strip().upper().replace(' ', '').replace('DAYS', '').replace('DAY', '').replace('D', '')
+    match = PREDECESSOR_REGEX.match(clean_part)
+    if not match:
+        return None
+    return int(match.group(1)), (match.group(2) or "FS"), (int(match.group(3)) if match.group(3) else 0)
+
 def get_holidays_for_years(start_year: int, end_year: int, custom_holidays: Optional[List] = None) -> List[Tuple[str, str]]:
     """
     v3 单源：从 config/holidays.json 加载全量法定节假日区间（已由 core/holidays 合并跨年）。
@@ -174,13 +187,9 @@ def solve_schedule(tasks: List[Dict[str, Any]], project_start_str: str, custom_h
 
             for part in parts:
                 if not part: continue
-                clean_part = part.upper().replace(' ', '').replace('DAYS', '').replace('DAY', '').replace('D', '')
-                match = PREDECESSOR_REGEX.match(clean_part)
-                if not match: continue
-
-                pid = int(match.group(1))
-                link_type = match.group(2) or "FS"
-                lag_val = int(match.group(3)) if match.group(3) else 0
+                parsed = parse_predecessor_token(part)
+                if not parsed: continue
+                pid, link_type, lag_val = parsed
 
                 if pid in dates:
                     p_start = datetime.datetime.strptime(dates[pid]["start"], "%Y-%m-%d").date()
@@ -287,7 +296,13 @@ def compute_cpm_metrics(tasks: List[Dict[str, Any]], project_end: Optional[str] 
     说明：基于 solve_schedule 已求出的 start/finish，在「工作日轴」上做反向遍历，给出离线
     预览用的总时差与关键路径。所有日期换算统一走工作日口径，避免周末虚增/虚减浮时。
     MPP 在最终写盘时仍会对任务日期与浮时做权威重算（保留委托）。
-    假设前提：任务列表按拓扑顺序（id 升序、前置指向更早 id），前置类型以 FS 为主。
+    假设前提：任务列表按拓扑顺序（id 升序、前置指向更早 id）。
+
+    反向遍历按链接类型区分（与正向 solve_schedule 口径一致）：
+      FS+lag : LF(P) = LS(S) - 1 - lag；P 为 0 工期里程碑时后继同日开始 → LF(P) = LS(S) - lag
+      SS+lag : LS(P) = LS(S) - lag  → LF(P) = LS(S) - lag + dur(P) - 1
+      FF+lag : LF(P) = LF(S) - lag
+    否则 SS 前置会被当作 FS 处理而得到虚假负浮时（分区 SS+lag 规则下尤为明显）。
     """
     dated = [t for t in tasks if t.get("start") and t.get("finish")]
     if not dated:
@@ -317,27 +332,38 @@ def compute_cpm_metrics(tasks: List[Dict[str, Any]], project_end: Optional[str] 
     ef_wd = {i: es_wd[i] + dur_axis[i] - 1 for i in es}
     proj_end_wd = max(ef_wd.values())
 
-    # 后继映射（FS 为主）
-    succ: Dict[int, List[int]] = {t["id"]: [] for t in dated}
+    # 后继映射：pid -> [(sid, link_type, lag)]
+    # 与正向 FS 口径镜像：前置 start==finish（里程碑）时后继同日开始，否则次日开始
+    same_day_pred = {t["id"]: es[t["id"]] == ef[t["id"]] for t in dated}
+    succ: Dict[int, List[Tuple[int, str, int]]] = {t["id"]: [] for t in dated}
     for t in dated:
         for p in str(t.get("predecessors", "")).split(","):
             p = p.strip()
             if not p:
                 continue
-            m = re.match(r'^(\d+)', p)
-            if m:
-                pid = int(m.group(1))
+            parsed = parse_predecessor_token(p)
+            if parsed:
+                pid, link_type, lag = parsed
                 if pid in succ and pid != t["id"]:
-                    succ[pid].append(t["id"])
+                    succ[pid].append((t["id"], link_type, lag))
 
     ls_wd: Dict[int, int] = {}
     lf_wd: Dict[int, int] = {}
     for t in reversed(dated):
         i = t["id"]
-        succs = succ[i]
-        valid_succs = [s for s in succs if s in ls_wd]
-        if valid_succs:
-            lf_wd[i] = min(ls_wd[s] for s in valid_succs) - 1  # FS 间隔 1 工作日
+        candidates: List[int] = []
+        for s, link_type, lag in succ[i]:
+            if s not in ls_wd:
+                continue
+            if link_type == "SS":
+                candidates.append(ls_wd[s] - max(lag, 0) + dur_axis[i] - 1)
+            elif link_type == "FF":
+                candidates.append(lf_wd[s] - max(lag, 0))
+            else:  # FS (SF treated as FS)
+                gap = 0 if same_day_pred[i] else 1
+                candidates.append(ls_wd[s] - gap - lag)
+        if candidates:
+            lf_wd[i] = min(candidates)
         else:
             lf_wd[i] = proj_end_wd
         ls_wd[i] = lf_wd[i] - (dur_axis[i] - 1)

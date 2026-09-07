@@ -29,6 +29,8 @@ from core.calibration import calibrate_durations, validate_complex_construction
 from core.task_utils import clean_procurement_terminology, renumber_tasks_contiguously, fold_exempt_construction_permit
 # v4.2 pilot: quantity → productivity → duration for ONE activity type (suspended_ceiling); templates untouched
 from core.productivity import apply_productivity_durations, tag_legacy_pilot_tasks, productivity_summary
+# Dependency Engine v0: sectional SS+lag rule table (config/dependency_rules.json); non-sectional projects keep template FS
+from core.dependency_engine import apply_dependency_rules, dependency_report, validate_dependency_graph
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="PMP Lead PM Scheduler - 主总调度器 (Audit-Hardened Master Orchestrator)")
@@ -49,6 +51,10 @@ def main() -> None:
                         help="[试点] 天花吊顶(suspended_ceiling)工期改走 工程量→生产率→工期 公式路径；其余节点仍用模板硬编码工期")
     parser.add_argument("--ceiling_area", type=float, default=None,
                         help="[试点] 实测吊顶工程量(㎡)。缺省按 --area × 净顶面积比 推导(置信度降级)")
+    parser.add_argument("--sectional", type=str, choices=["auto", "on", "off"], default="auto",
+                        help="[依赖引擎v0] 分区穿插 SS+lag 规则: auto=按 config/dependency_rules.json 面积/工作面阈值判定(默认); on=强制启用; off=保持模板 FS")
+    parser.add_argument("--workfronts", type=int, default=None,
+                        help="[依赖引擎v0] 显式分区/工作面数量。缺省按 --area ÷ 单工作面面积 推导；同时决定 SS 滞后 = ceil(前置工期 ÷ 工作面数)")
 
     # ③ x ④ -> 4 套模板键映射
     TEMPLATE_MAP = {
@@ -164,6 +170,18 @@ def main() -> None:
     tasks = clean_procurement_terminology(tasks, mode_key, log=logger)
     tasks = renumber_tasks_contiguously(tasks)
 
+    # 2.95 依赖引擎 v0：分区(多工作面)项目按规则表把 隔墙/机电/天花 工序对由 FS 改为 SS+lag；
+    #      非分区项目为空操作（模板 FS 逻辑与 v4.1 完全一致）。在 renumber 之后执行，id 已为最终值。
+    logger.info(f"Step 2.95: 呼叫依赖引擎 v0（分区 SS+lag 规则表, --sectional {args.sectional}）...")
+    if args.workfronts is not None and args.workfronts < 1:
+        raise SystemExit(f"无效工作面数: {args.workfronts} (应 >= 1)")
+    dep_report = apply_dependency_rules(tasks, args.area, mode=args.sectional, workfronts=args.workfronts, log=logger)
+    graph_issues = validate_dependency_graph(tasks)
+    for gi in graph_issues:
+        logger.error(f"  -> [依赖图审计][{gi['code']}] {gi['message']}")
+    if any(gi["code"] == "PRED_CYCLE" for gi in graph_issues):
+        raise SystemExit("DEPENDENCY_GRAPH_INVALID: cycle in predecessor network")
+
     # v3 单源：config/holidays.json 一次读取，求解器与 MPP 日历共用同一份
     holidays_raw = _holidays.load_holiday_raw()       # [{"name","start","finish"}] -> MPP 日历 Exceptions
     holidays_pairs = _holidays.load_holiday_pairs()   # [(start,end)] -> 求解器 is_workday
@@ -248,6 +266,28 @@ def main() -> None:
                 f"{r['start']}→{r['finish']}, critical={r['critical']}"
             )
         logger.info(f"  -> [productivity] 可解释字段已落盘: {prod_out}")
+
+    # 依赖引擎可解释字段落盘（仅当有规则命中）：<output>_dependencies.json
+    dep_rows = dependency_report(tasks_solved)
+    if dep_rows:
+        dep_out = os.path.splitext(output_path)[0] + "_dependencies.json"
+        os.makedirs(os.path.dirname(dep_out), exist_ok=True)
+        with open(dep_out, "w", encoding="utf-8") as f:
+            json.dump({"project_name": args.project_name, "area_sqm": args.area,
+                       "start_date": start_date_str, "finish_date": finish_date,
+                       "decision": dep_report["decision"], "skipped": dep_report["skipped"],
+                       "tasks": dep_rows}, f, ensure_ascii=False, indent=2)
+        for r in dep_rows:
+            fired = "; ".join(
+                f"{x['rule_id']}: {x['predecessor_id']}{x['relationship']}+{x['lag_days']} ({x['lag_basis']})"
+                for x in r["rules"])
+            logger.info(
+                f"  -> [dependency][explain] #{r['id']} {r['name']}: '{r['predecessors_before_rules']}' → '{r['predecessors']}' "
+                f"[{fired}] {r['start']}→{r['finish']}, critical={r['critical']}"
+            )
+        logger.info(f"  -> [dependency] 可解释字段已落盘: {dep_out}")
+    else:
+        logger.info(f"  -> [dependency] 未命中分区规则（sectional={dep_report['decision']['sectional']}），模板 FS 逻辑保持不变。")
 
     mpp_written = False
     if args.no_mpp:
