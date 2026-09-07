@@ -56,7 +56,7 @@ Do not run `dev_tools/`. Do not call COM except through `exporters/mpp_renderer.
 
 - City rules and holidays only from `config/` JSON. No live web lookups for statutes.
 - Exempt permit → fold government construction-permit tasks; keep property review and fire path.
-- Predecessor-only links. FS / SS / FF with optional lag allowed. Do not write Successor fields.
+- Predecessor-only links. FS / SS / FF with optional lag allowed. Do not write Successor fields. Sectional SS+lag re-linking comes only from `config/dependency_rules.json` (see below).
 - Dual calendars — design/gov on client workdays; site and purge on construction 7×8 with Spring Festival to Lantern Festival off.
 - Integer workdays. Dual IAQ sequence required.
 - Compliance errors block delivery (`COMPLIANCE_BLOCKED`). Infeasible backward schedule fails loudly.
@@ -75,6 +75,20 @@ Default off. Template hard-coded durations remain the path for every task. Opt-i
 
 Tests: `python tests/test_productivity_pilot.py` (formula fixture 1200㎡ / 10㎡·worker-day / crew 6 / complex 1.2 → 24d; all four templates unchanged with the pilot off; verification gate with it on).
 
+## Dependency engine v0 — sectional SS+lag (rule table)
+
+Default templates link site trades FS through the inspection gates. On a *sectional* project (several workfronts) the rule table in `config/dependency_rules.json` re-links the listed trade pairs (partition ↔ MEP, MEP ↔ ceiling) as `SS+lag`. Non-sectional projects are untouched — template FS behaviour stands, byte-for-byte.
+
+- `--sectional auto|on|off` (default `auto`) — `auto` is sectional when `--area >= activation.sectional_area_sqm_min` (5000㎡) **or** workfronts `>= activation.min_workfronts` (2). `on` / `off` force it.
+- `--workfronts N` — explicit zone count. Default `clamp(floor(area / workfront_area_sqm), 1, max_workfronts)` = 2500㎡ per zone, cap 8.
+- Lag is deterministic: `clamp(ceil(predecessor_duration ÷ workfronts), lag_days.min, lag_days.max)` in the successor's calendar workdays.
+- The inspection gate the successor used to wait on (FS) is kept as `FF` so the trade cannot finish before its inspection finishes and no link is left dangling. Summaries and milestones are never re-linked; durations are never changed.
+- Every re-linked task carries `predecessors_before_rules` + `dependency_rules` (rule id, predecessor, lag basis, gate). Sidecar: `output_mpp/<output>_dependencies.json` (decision + reasons + per-task rows). Logs state which rule fired and why, or that none did.
+- Rules only add links to earlier tasks; `validate_dependency_graph` (Kahn's sort) still runs after every solve prep — a cycle blocks with `DEPENDENCY_GRAPH_INVALID`, unknown / forward references are logged as errors.
+- Edit pairs, thresholds and lag ranges in the JSON only. v0 relationships are `SS` only; gate policy `FF` or `drop`.
+
+Tests: `python tests/test_dependency_engine.py` (1500㎡ / 280㎡ exempt on all four templates == v4.1 path task-by-task; 20000㎡ fires SEC-01..05, finishes earlier than FS, graph acyclic, gates 1–7 hold; CPM backward pass honours SS / FF / lag).
+
 ## Verification gate
 
 Before calling the job done:
@@ -87,6 +101,7 @@ Before calling the job done:
 6. Gov/permit tasks not on construction 7-day; trades not forced onto 5-day only
 7. Critical path non-empty in preview metrics
 8. `.mpp` only via `build_mpp`, or `--no_mpp` stated to the user
+9. Dependency graph valid (no cycle / unknown / forward reference); if sectional, each fired rule is logged with its lag basis and the `_dependencies.json` sidecar exists; if not sectional, the log states template FS logic was kept
 
 On failure — fix and regenerate. Do not deliver a known-bad file.
 
