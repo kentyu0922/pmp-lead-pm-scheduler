@@ -1,0 +1,34 @@
+{
+  "version": "0.1.0-pilot",
+  "description": "Quantity -> productivity -> duration rate library. Pilot scope: ONE activity type (suspended_ceiling). Rates are per worker per 8h construction day. Edit rates here only (single source); never hard-code in Python.",
+  "confidence_levels": ["low", "medium", "high"],
+  "activity_types": {
+    "suspended_ceiling": {
+      "label_zh": "天花吊顶 (龙骨 + 封板/矿棉板)",
+      "label_en": "Suspended ceiling (grid + board/tile)",
+      "unit": "m2",
+      "rate_per_worker_day": 10.0,
+      "rate_basis": "Office fit-out, 2.7-3.0m ceiling, exposed-grid mineral fibre or gypsum lay-in incl. hangers/main tees/cross tees and board fixing. Industry rule-of-thumb 8-15 m2/worker-day; pilot uses 10 until field-calibrated.",
+      "default_crew_size": 6,
+      "min_duration_days": 3,
+      "base_confidence": "medium",
+      "factors": {
+        "complexity": {
+          "standard": 1.0,
+          "complex": 1.2,
+          "feature": 1.5
+        },
+        "access": {
+          "open": 1.0,
+          "restricted": 1.15,
+          "high_ceiling": 1.3
+        }
+      },
+      "legacy_template_bridge": {
+        "match_keywords": ["天花吊顶龙骨", "吊顶龙骨"],
+        "quantity_from_area_ratio": 0.85,
+        "note": "Legacy WBS tasks carry no quantity. When --productivity_pilot is on, tasks whose name contains a match keyword are tagged suspended_ceiling and quantity = gross area x ratio (net ceiling area). Derived quantity downgrades confidence."
+      }
+    }
+  }
+}

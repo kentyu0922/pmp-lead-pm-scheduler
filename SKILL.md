@@ -63,6 +63,18 @@ Do not run `dev_tools/`. Do not call COM except through `exporters/mpp_renderer.
 
 City or holiday edits go in JSON only, then bump `metadata.last_verified`.
 
+## Duration pilot — quantity → productivity → duration (one activity type)
+
+Default off. Template hard-coded durations remain the path for every task. Opt-in bridge:
+
+- `--productivity_pilot` — the `suspended_ceiling` WBS task (name matches `天花吊顶龙骨`) is re-timed as `quantity ÷ (rate × crew) × factors`, ceil to integer workdays, floored at `min_duration_days`. Everything else keeps its template duration.
+- `--ceiling_area <㎡>` — measured ceiling takeoff. Without it, quantity = `--area × 0.85` and confidence is downgraded (`derived_from_area`).
+- Rates, crew defaults, factor tables and the template keyword bridge live only in `config/productivity_rates.json`. Tasks in any task list may also carry `activity_type` + `quantity` (+ `crew_size`, `factors`) directly.
+- Explainable fields are attached to the task (`productivity`, `duration_method`) and written to `output_mpp/<output>_productivity.json`: quantity, unit, productivity_rate, crew_size, factors, calculated_duration, final_duration, template_duration, confidence + reasons.
+- Unknown activity type, missing quantity or bad factor key → warning, template duration kept. Never raises inside the pipeline.
+
+Tests: `python tests/test_productivity_pilot.py` (formula fixture 1200㎡ / 10㎡·worker-day / crew 6 / complex 1.2 → 24d; all four templates unchanged with the pilot off; verification gate with it on).
+
 ## Verification gate
 
 Before calling the job done:

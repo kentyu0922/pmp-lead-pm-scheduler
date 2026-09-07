@@ -27,6 +27,8 @@ from core import compliance as _compliance
 # 化繁为简：业务逻辑已提取到独立模块
 from core.calibration import calibrate_durations, validate_complex_construction
 from core.task_utils import clean_procurement_terminology, renumber_tasks_contiguously, fold_exempt_construction_permit
+# v4.2 pilot: quantity → productivity → duration for ONE activity type (suspended_ceiling); templates untouched
+from core.productivity import apply_productivity_durations, tag_legacy_pilot_tasks, productivity_summary
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="PMP Lead PM Scheduler - 主总调度器 (Audit-Hardened Master Orchestrator)")
@@ -43,6 +45,10 @@ def main() -> None:
     parser.add_argument("--addons", type=str, default="", help="附加的 Sub-WBS 模块名 (如 Datacenter_LoadBank_Module)")
     parser.add_argument("--no_mpp", action="store_true", default=False, help="跳过物理 MS Project COM 渲染，仅生成 CPM 解算数据与 PDF/PPTX 报表")
     parser.add_argument("--output", type=str, default="Output_Schedule.mpp", help="输出 MPP 文件名称")
+    parser.add_argument("--productivity_pilot", action="store_true", default=False,
+                        help="[试点] 天花吊顶(suspended_ceiling)工期改走 工程量→生产率→工期 公式路径；其余节点仍用模板硬编码工期")
+    parser.add_argument("--ceiling_area", type=float, default=None,
+                        help="[试点] 实测吊顶工程量(㎡)。缺省按 --area × 净顶面积比 推导(置信度降级)")
 
     # ③ x ④ -> 4 套模板键映射
     TEMPLATE_MAP = {
@@ -133,6 +139,15 @@ def main() -> None:
     tasks = calibrate_durations(tasks, permit_info, args.area, template_base_area, args.addons, cost_10k_rmb=args.cost, log=logger)
     validate_complex_construction(tasks, args.area, args.addons, log=logger)
 
+    # 4.5 工程量→生产率→工期 试点（activity_type 开关）。默认关闭：模板节点无 activity_type，
+    #     apply_productivity_durations 为空操作，输出与 v4.1 完全一致。开启后仅天花吊顶节点改走公式。
+    if args.productivity_pilot:
+        logger.info("Step 2.9: [试点] 工程量→生产率→工期 (suspended_ceiling)...")
+        tagged = tag_legacy_pilot_tasks(tasks, args.area, quantity_override=args.ceiling_area, log=logger)
+        if not tagged:
+            logger.warning("  -> [productivity] 模板中未命中任何天花吊顶节点，试点未生效（模板工期照旧）。")
+    tasks = apply_productivity_durations(tasks, log=logger)
+
     if tasks:
         tasks[0]["name"] = args.project_name
 
@@ -215,6 +230,26 @@ def main() -> None:
     output_path = os.path.join(BASE_DIR, "output_mpp", args.output)
     proj_start_dt = datetime.datetime.strptime(start_date_str, "%Y-%m-%d") if start_date_str else datetime.date.today()
 
+    # 试点可解释字段落盘（仅当存在公式路径节点）：<output>_productivity.json
+    prod_rows = productivity_summary(tasks_solved)
+    if prod_rows:
+        prod_out = os.path.splitext(output_path)[0] + "_productivity.json"
+        os.makedirs(os.path.dirname(prod_out), exist_ok=True)
+        with open(prod_out, "w", encoding="utf-8") as f:
+            json.dump({"project_name": args.project_name, "area_sqm": args.area,
+                       "start_date": start_date_str, "finish_date": finish_date,
+                       "tasks": prod_rows}, f, ensure_ascii=False, indent=2)
+        for r in prod_rows:
+            logger.info(
+                f"  -> [productivity][explain] #{r['id']} {r['name']}: quantity={r['quantity']:g}{r['unit']} "
+                f"({r['quantity_source']}), rate={r['productivity_rate']:g} {r['productivity_unit']}, crew={r['crew_size']}, "
+                f"factors={r['factor_labels']} (×{r['factor_product']:g}), calculated={r['calculated_duration']:g}d, "
+                f"final={r['final_duration']}d (template {r['template_duration']}d), confidence={r['confidence']}, "
+                f"{r['start']}→{r['finish']}, critical={r['critical']}"
+            )
+        logger.info(f"  -> [productivity] 可解释字段已落盘: {prod_out}")
+
+    mpp_written = False
     if args.no_mpp:
         logger.info("Step 4: [已指定 --no_mpp] 跳过物理 MS Project COM 渲染，直接进入 PDF/PPTX 报表导出...")
     else:
@@ -227,6 +262,7 @@ def main() -> None:
                 calendar_exceptions=holidays_raw,
                 output_mpp_path=output_path
             )
+            mpp_written = os.path.exists(output_path)
         except Exception as mpp_err:
             logger.warning(f"  -> [MPP COM 渲染] 跳过或COM不可用: {mpp_err}")
 
@@ -257,7 +293,11 @@ def main() -> None:
         logger.warning(f"  -> [PPTX 演示] 自动导出跳过: {ex}")
     
     logger.info(f"==================================================")
-    logger.info(f"SUCCESS: 调度完成！物理文件已通过 100% 审计落地: {output_path}")
+    if mpp_written:
+        logger.info(f"SUCCESS: 调度完成！物理文件已通过 100% 审计落地: {output_path}")
+    else:
+        # SKILL.md: never claim an .mpp was written when it was not (--no_mpp or COM unavailable)
+        logger.info(f"SUCCESS: 调度完成！CPM 解算与合规审计通过；未生成 .mpp（--no_mpp 或无 MS Project COM），交付物见 {os.path.dirname(output_path)} 下的 .pdf/.pptx")
 
 if __name__ == "__main__":
     main()
