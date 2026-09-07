@@ -2,7 +2,7 @@
 name: pmp-lead-pm-scheduler
 description: Mainland China office fit-out master schedule. Confirm start or target date, DB or DBB, invite or public bidding, city, area and cost, then run main.py to export mpp, pdf and pptx. Use when the user asks for 排期, 进度计划, 工期推演, Master Programme, or MPP export.
 metadata:
-  version: "4.1.0"
+  version: "4.2.0"
   last_verified: "2026-09-07"
 ---
 
@@ -75,6 +75,43 @@ Default off. Template hard-coded durations remain the path for every task. Opt-i
 
 Tests: `python tests/test_productivity_pilot.py` (formula fixture 1200㎡ / 10㎡·worker-day / crew 6 / complex 1.2 → 24d; all four templates unchanged with the pilot off; verification gate with it on).
 
+## V5 architecture — iron rule, defaults, engine flags
+
+Iron rule (applies to the agent and to every engine):
+
+- **The LLM only classifies.** It may pick the template (delivery × bidding), name an `activity_type`, choose factor *keys* (`complexity: complex`, `access: high_ceiling`), judge whether an optimizer suggestion is acceptable to the PM. It never emits a duration, a date, a rate, a crew size or a float value.
+- **Duration comes only from DB + formula.** Either the hard-coded template number (`templates/wbs_templates.json` → `core/calibration.py`) or `config/productivity_rates.json` × the formula in `core/productivity.py`. A number typed into a prompt or produced by the model is not a duration source. Unknown type / missing quantity → template duration kept, warning logged.
+- **Dates come only from the solver.** `core/solver_engine.py` on `config/holidays.json`. Float and critical path in the optimizer are computed from that solve, never guessed.
+- **Legacy templates stay the default.** Every engine below is opt-in. With no flag, `main.py` output is byte-identical to v4.1.
+
+| Flag | Default | What turns on |
+|------|---------|---------------|
+| `--productivity_pilot` | off | suspended_ceiling duration via quantity ÷ (rate × crew) × factors (section above) |
+| `--ceiling_area <㎡>` | derived from `--area × 0.85` | measured takeoff for the pilot; raises confidence one level |
+| `--optimizer` | off | read-only Schedule Optimizer v0 (below); writes `output_mpp/<output>_optimizer.json` |
+
+Not built yet (other cards): quantity takeoff for further activity types, dependency engine, resource/crash optimizer. Do not describe them as available.
+
+### Schedule Optimizer v0 (`--optimizer`, `core/optimizer.py`)
+
+What it does, from the solve output only:
+
+- **Critical path / float summary.** Calendar-aware backward pass that inverts the solver's FS / SS / FF + lag rules on each task's own calendar (construction 7-day / standard 5-day / 24h) → total float in working days; the *driving chain* (predecessor that actually set each start, from Kick-off to the latest finish); float distribution, near-critical list (float 1–5), per-phase critical counts. Deterministic: same input → identical JSON.
+- **ONE fast-track rule.** For consecutive plain-FS pairs on the driving chain: propose `succ: predSS+(dur_pred − overlap)` with `overlap = floor(min(dur_pred, dur_succ) × 0.5)`, capped at 5 working days. Every suggestion cites both activities (id, name, duration, dates, float, calendar), the current and proposed relationship token, an upper-bound saving, and `why` / `risk` text. Durations are copied from the baseline, never changed or invented.
+- **Excluded from overlap, by keyword, with the reason recorded:** government / statutory windows (审查 审批 备案 许可 报监 …), inspection & acceptance (验收 检测 复测 盲测 …), the dual-IAQ chain (空气 散味 通风 家具 …), tender / award / contract windows (招标 投标 清标 定标 中标 合同 …), handover / relocation, milestones, links that are already SS/FF or lagged, co-driven successors, pairs too short for a ≥1-day overlap.
+- **Verification, not application.** Each suggestion is re-solved on a deep copy (`solve_schedule`) and reports `baseline_finish → new_finish`, calendar-day saving, whether the driving chain changed, and compliance errors after the change. The baseline task list, `.pdf`, `.pptx` and any `.mpp` are unchanged; every suggestion carries `applied_to_baseline: false`.
+
+Honest limits of v0:
+
+- It suggests; it does not apply. If the PM accepts a suggestion, edit the successor's predecessor token in the task list / template (or in MS Project) and re-run. When you do, say exactly what changed: task id, `before → after` token, and why. Never apply an optimizer change silently.
+- One heuristic, one ratio (0.5) and one cap (5d), not calibrated to trade data. Only FS→SS overlap; no crashing, no resource levelling, no evaluation of several suggestions together (savings do not add).
+- A driving task can show float > 0 at a calendar boundary (7-day milestone ending Sunday before a 5-day task starting Monday). The optimizer flags this (`calendar_boundary_float`) instead of forcing it to 0; MS Project shows the same slack.
+- The legacy preview `compute_cpm_metrics` (5-day axis, FS-only) still feeds the existing PDF/PPTX `critical` marks and is reported as `legacy_preview_critical_count`; the two counts can disagree. When an `.mpp` is produced, MS Project remains the authority for dates and float.
+
+Standalone (no MS Project): `python core/solver_engine.py tasks.json` then `python core/optimizer.py tasks.solved.json --out opt.json`.
+
+Tests: `python tests/test_optimizer_v0.py` (fixture network + all four templates: summary fields, driving chain, no negative float, ≥1 suggestion citing real activities / floats / tokens, baseline not mutated, re-solve saving ≥ 0 with compliance 0 error, determinism).
+
 ## Verification gate
 
 Before calling the job done:
@@ -87,6 +124,7 @@ Before calling the job done:
 6. Gov/permit tasks not on construction 7-day; trades not forced onto 5-day only
 7. Critical path non-empty in preview metrics
 8. `.mpp` only via `build_mpp`, or `--no_mpp` stated to the user
+9. If `--optimizer` was used — report suggestions as *not applied*; quote saving only from the re-solve (`verified.new_finish`), and if the PM accepts one, state the task id and `before → after` predecessor token before re-running
 
 On failure — fix and regenerate. Do not deliver a known-bad file.
 

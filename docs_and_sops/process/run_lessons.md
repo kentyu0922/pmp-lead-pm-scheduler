@@ -14,6 +14,18 @@ Append one block per real schedule run. Newest at top.
 - Follow-up open:
 ```
 
+## 2026-09-07 — Schedule Optimizer v0 + SKILL V5 section (Linux, --no_mpp)
+- Inputs: (1) city=上海, area=1500, cost=320, DBB + invite, start=2026-08-28, with / without `--optimizer`; (2) city=北京, area=3000, cost=1500, DB + public, target=2027-10-30, `--optimizer --productivity_pilot --ceiling_area 2400`
+- Result: PASS (tests/test_optimizer_v0.py 351/351; tests/test_productivity_pilot.py 58/58; tests/test_v3_basics.py 76/76 with the out-of-repo COM stub; preflight PASS; default run log identical to origin/main)
+- Issues:
+  1. Legacy `compute_cpm_metrics` flags 74/89 tasks critical with slack down to −48 on the Shanghai DBB case (5-day axis, FS-only). Not usable as a float basis for suggestions → optimizer computes its own calendar-aware backward pass (62 float-0 tasks, driving chain 59, no negative float). Legacy preview left untouched for PDF/PPTX compatibility and reported alongside.
+  2. Solver FS rule treats any predecessor with start == finish (0-day *and* 1-day tasks) as "successor starts same day". The backward pass must mirror that or every 1-day task on the chain leaks 1 day of negative float. Mirrored; fixture test locks it.
+  3. A 7-day-calendar milestone ending Sunday before a 5-day task starting Monday carries 1 working day of real float although it drives the finish. Reported as `calendar_boundary_float`, not forced to 0.
+  4. Shanghai DBB: three FS→SS suggestions (65→66, 66→67, 67→68; 3d overlap each) each re-solve to 2027-05-07 → 2027-04-30, compliance 0 error. Beijing backward case: same rule saves only 1 calendar day because a parallel path binds — the report says so instead of claiming 3.
+- Root cause: no read-only analysis layer existed between solve and export; float preview was approximate.
+- Change made (file): `core/optimizer.py` (new), `core/solver_engine.py` (`build_calendar_bitmaps` refactor, behaviour unchanged), `main.py` (`--optimizer` + sidecar), `scripts/preflight.py`, `tests/test_optimizer_v0.py`, `SKILL.md` (V5 section, gate 9, version 4.2.0), `README.md`
+- Follow-up open: calibrate overlap ratio / cap per trade pair; consider replacing the legacy preview with the calendar-aware pass in reports (separate card); Windows + MS Project run with `--optimizer` to compare float against MSP Total Slack; `exporters/` Windows-only imports still block `import main` on Linux (pre-existing, out of scope).
+
 ## 2026-09-07 — Duration pilot: suspended_ceiling quantity→productivity→duration (Linux, --no_mpp)
 - Inputs: city=上海, area=1500, cost=320, delivery=DBB, bidding=invite, start=2026-08-28; run twice, without / with `--productivity_pilot`
 - Result: PASS (tests/test_v3_basics.py 76/76; tests/test_productivity_pilot.py 58/58; preflight PASS; compliance 0 error both runs)
