@@ -45,7 +45,8 @@ def run_preflight(verbose: bool = True) -> list:
 
     # 2) 核心模块可导入（含 v3 收敛新增的合规/日历/报建模块）
     for mod in ["core.solver_engine", "core.mpp_renderer",
-                "core.compliance", "core.holidays", "core.productivity", "core.dependency_engine",
+                "core.compliance", "core.holidays", "core.productivity", "core.quantity_engine",
+                "core.dependency_engine",
                 "experts.permit_expert"]:
         try:
             _load(mod)
@@ -67,7 +68,16 @@ def run_preflight(verbose: bool = True) -> list:
     except Exception as e:
         issues.append(f"config/city_permit.json 加载失败: {e}")
 
-    # 2.6) 依赖引擎 v0 规则表可加载且结构合法（外置单源）
+    # 2.6) 工程量基准库可加载（外置单源；缺参数即失败）
+    try:
+        QE = _load("core.quantity_engine")
+        qb = QE.load_quantity_benchmarks()
+        if verbose:
+            print(f"[preflight] 工程量基准库 OK：等级 {sorted(qb['grades'])} × 形态 {sorted(qb['layouts'])}")
+    except Exception as e:
+        issues.append(f"config/quantity_benchmarks.json 加载失败: {e}")
+
+    # 2.7) 依赖引擎 v0 规则表可加载且结构合法（外置单源）
     try:
         DE = _load("core.dependency_engine")
         rules = DE.load_dependency_rules()
