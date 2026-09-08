@@ -123,6 +123,22 @@ def _add_working_days(start: datetime.date, n: int, ignore_h: bool, work_weekend
     return cur
 
 
+def build_calendar_bitmaps(start_year: int, custom_holidays: Optional[List] = None) -> Tuple[Set[datetime.date], Set[datetime.date]]:
+    """
+    返回 (holiday_bitmap, spring_festival_bitmap)，供正向解算与优化器反向遍历共用同一套日历口径。
+
+    holiday_bitmap        : 全部法定节假日（标准5天日历停工）
+    spring_festival_bitmap: 仅春节(含元宵返岗)区间（施工7天日历唯一停工例外，与 mpp_renderer 注入策略一致）
+    """
+    active_holidays = get_holidays_for_years(start_year, start_year + 5, custom_holidays)
+    holiday_bitmap = build_holiday_bitmap(active_holidays)
+    spring_festival_raw = [h for h in load_holiday_raw() if "春节" in (h.get("name", "") or "")]
+    spring_festival_bitmap = build_holiday_bitmap(
+        [(h["start"], h["finish"]) for h in spring_festival_raw if h.get("start") and h.get("finish")]
+    )
+    return holiday_bitmap, spring_festival_bitmap
+
+
 def solve_schedule(tasks: List[Dict[str, Any]], project_start_str: str, custom_holidays: Optional[List] = None) -> Dict[str, Any]:
     """
     执行 CPM 网络计划正向推演（v3：节假日单源）。
@@ -130,16 +146,9 @@ def solve_schedule(tasks: List[Dict[str, Any]], project_start_str: str, custom_h
     proj_start = datetime.datetime.strptime(project_start_str, "%Y-%m-%d").date()
     
     # 动态评估可能跨越的年份跨度 (如从项目开始年份后推 5 年)
-    start_year = proj_start.year
-    active_holidays = get_holidays_for_years(start_year, start_year + 5, custom_holidays)
-    holiday_bitmap = build_holiday_bitmap(active_holidays)
-
     # 春节(含元宵返岗)停工位图 —— MPP「施工7天日历」仅对春节停工, 其余法定节假日照常施工。
     # 与 mpp_renderer 物理注入的施工日历例外策略完全一致, 杜绝求解器/MPP 二次漂移。
-    spring_festival_raw = [h for h in load_holiday_raw() if "春节" in (h.get("name", "") or "")]
-    spring_festival_bitmap = build_holiday_bitmap(
-        [(h["start"], h["finish"]) for h in spring_festival_raw if h.get("start") and h.get("finish")]
-    )
+    holiday_bitmap, spring_festival_bitmap = build_calendar_bitmaps(proj_start.year, custom_holidays)
 
     # 建立 ID 到 Task 的字典
     task_dict = {t["id"]: t for t in tasks}

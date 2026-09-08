@@ -88,6 +88,8 @@ def main() -> None:
                         help="[依赖引擎v0] 分区穿插 SS+lag 规则: auto=按 config/dependency_rules.json 面积/工作面阈值判定(默认); on=强制启用; off=保持模板 FS")
     parser.add_argument("--workfronts", type=int, default=None,
                         help="[依赖引擎v0] 显式分区/工作面数量。缺省按 --area ÷ 单工作面面积 推导；同时决定 SS 滞后 = ceil(前置工期 ÷ 工作面数)")
+    parser.add_argument("--optimizer", action="store_true", default=False,
+                        help="[v0] 只读优化器：输出关键路径/浮时摘要 + 可解释快速跟进(FS→SS)建议到 <output>_optimizer.json；不改写基线排程")
 
     # ③ x ④ -> 4 套模板键映射
     TEMPLATE_MAP = {
@@ -365,6 +367,25 @@ def main() -> None:
         logger.info(f"  -> [dependency] 可解释字段已落盘: {dep_out}")
     else:
         logger.info(f"  -> [dependency] 未命中分区规则（sectional={dep_report['decision']['sectional']}），模板 FS 逻辑保持不变。")
+
+    # v0 优化器（只读）：关键路径/浮时摘要 + 快速跟进建议。建议逐条在深拷贝上重解校验；
+    # tasks_solved 与交付物（mpp/pdf/pptx）保持基线不变，只落盘 <output>_optimizer.json。
+    if args.optimizer:
+        logger.info("Step 3.8: [v0] 只读优化器：关键路径/浮时摘要 + 快速跟进建议...")
+        try:
+            from core.optimizer import analyze_schedule, render_report
+            opt_result = analyze_schedule(tasks_solved, start_date_str or None, custom_holidays=holidays_pairs)
+            opt_out = os.path.splitext(output_path)[0] + "_optimizer.json"
+            os.makedirs(os.path.dirname(opt_out), exist_ok=True)
+            with open(opt_out, "w", encoding="utf-8") as f:
+                json.dump({"project_name": args.project_name, "inputs": {"city": args.city, "area": args.area, "cost": args.cost,
+                                                                          "delivery": delivery_val, "bidding": bidding_val},
+                           **opt_result}, f, ensure_ascii=False, indent=2)
+            for line in render_report(opt_result).splitlines():
+                logger.info(f"  {line}")
+            logger.info(f"  -> [optimizer] 建议未应用到基线；摘要与建议已落盘: {opt_out}")
+        except Exception as ex:
+            logger.warning(f"  -> [optimizer] 跳过（不影响排程交付）: {ex}")
 
     mpp_written = False
     if args.no_mpp:
