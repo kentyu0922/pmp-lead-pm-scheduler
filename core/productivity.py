@@ -23,6 +23,14 @@ Rates, rate-level tables and factor tables live only in config/productivity_rate
 (single source, same rule as holidays / city permits). No live lookups, and no task-level
 rate override: a task may choose *which* configured level applies (`rate_level`) but can
 never supply its own rate — an LLM or a caller must not invent productivity or durations.
+
+Quantity precedence (Quantity Engine v0 hook):
+    1. task["quantity"]            measured BOQ / takeoff           → quantity_source "measured"
+    2. derived_quantities[key]     core.quantity_engine output, looked up via the rate
+                                   entry's `quantity_key` (e.g. ceiling_area)
+                                                                    → quantity_source "derived_from_area"
+    3. legacy bridge ratio         gross area × quantity_from_area_ratio (tag_legacy_pilot_tasks only)
+                                                                    → quantity_source "derived_from_area"
 """
 import os
 import json
@@ -284,13 +292,47 @@ def compute_activity_duration(
     }
 
 
+def _as_quantity_map(derived: Any) -> Dict[str, float]:
+    """Accept core.quantity_engine result / {name: value} / None → {name: value} (lazy import, no cycle)."""
+    if not derived:
+        return {}
+    from core.quantity_engine import as_quantity_map
+    return as_quantity_map(derived)
+
+
+def resolve_derived_quantity(
+    activity_type: str,
+    derived_quantities: Any,
+    rates: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    """Quantity Engine hook: look up the rate entry's `quantity_key` in derived quantities.
+
+    Returns {"quantity", "quantity_key", "quantity_source"} or None when the activity type
+    declares no `quantity_key` or the engine output lacks it. Never raises on a miss.
+    """
+    rates = rates or load_productivity_rates()
+    entry = rates["activity_types"].get(activity_type) or {}
+    key = entry.get("quantity_key")
+    if not key:
+        return None
+    qmap = _as_quantity_map(derived_quantities)
+    if key not in qmap:
+        return None
+    return {"quantity": float(qmap[key]), "quantity_key": key, "quantity_source": QTY_DERIVED}
+
+
 def apply_productivity_durations(
     tasks: List[Dict[str, Any]],
     rates: Optional[Dict[str, Any]] = None,
     log: Optional[logging.Logger] = None,
+    derived_quantities: Any = None,
 ) -> List[Dict[str, Any]]:
     """Activity-type switch. Tasks with `activity_type` + `quantity` get a formula duration
     and an explainable `productivity` block; all other tasks are returned untouched.
+
+    `derived_quantities` (optional) is a core.quantity_engine result or {name: value} map.
+    A task with `activity_type` but no measured `quantity` is filled from it via the rate
+    entry's `quantity_key` and flagged `derived_from_area`; a measured quantity always wins.
 
     Unknown activity types / missing quantity / invalid factors / unknown rate_level do NOT
     raise: the task keeps its template duration and a warning is logged, so the legacy path
@@ -304,6 +346,17 @@ def apply_productivity_durations(
         if not atype:
             continue
         prev = int(round(float(t.get("duration_days", t.get("duration", 0)) or 0)))
+        if t.get("quantity") is None and derived_quantities:
+            hit = resolve_derived_quantity(atype, derived_quantities, rates)
+            if hit:
+                t["quantity"] = hit["quantity"]
+                t["quantity_source"] = hit["quantity_source"]
+                t["quantity_key"] = hit["quantity_key"]
+                t.setdefault("unit", rates["activity_types"][atype].get("unit", ""))
+                log.info(
+                    f"  -> [productivity] task {t.get('id')} '{t.get('name')}': no measured quantity → "
+                    f"quantity engine {hit['quantity_key']} = {hit['quantity']:g}{t.get('unit', '')} ({QTY_DERIVED})"
+                )
         if t.get("quantity") is None:
             log.warning(f"  -> [productivity] task {t.get('id')} '{t.get('name')}' has activity_type={atype} but no quantity; keeping template duration {prev}d")
             continue
@@ -327,6 +380,8 @@ def apply_productivity_durations(
             log.warning(f"  -> [productivity] task {t.get('id')} '{t.get('name')}': {ex}; keeping template duration {prev}d")
             continue
         res["template_duration"] = prev
+        if t.get("quantity_key"):
+            res["quantity_key"] = t["quantity_key"]
         t["duration_days"] = res["final_duration"]
         t["duration"] = res["final_duration"]
         t["duration_method"] = METHOD_FORMULA
@@ -353,17 +408,19 @@ def tag_legacy_pilot_tasks(
     log: Optional[logging.Logger] = None,
     quantity_overrides: Optional[Dict[str, float]] = None,
     rate_level: Optional[str] = None,
+    derived_quantities: Any = None,
 ) -> List[int]:
     """Bridge for hard-coded WBS templates (opt-in, `--productivity_pilot`).
 
     Legacy tasks carry no quantity. For each requested activity type with a
     `legacy_template_bridge` in the rate library, leaf tasks whose name contains a
-    match keyword are tagged with `activity_type` and a quantity — either the caller's
-    measured value (`quantity_overrides[type]`, or `quantity_override` for every type)
-    or gross area × ratio (flagged as derived). Bridge-level default factors (e.g. a
-    composite legacy task) are copied onto the task so they show up in the explanation.
-    `activity_types="all"` selects every bridged type in config order. Templates on disk
-    are never modified. Returns the tagged task ids.
+    match keyword are tagged with `activity_type` and a quantity, in precedence order:
+    caller's measured value (`quantity_overrides[type]`, or `quantity_override` for every
+    type) → Quantity Engine output (`derived_quantities`, via the entry's `quantity_key`)
+    → gross area × bridge ratio. Both non-measured paths are flagged `derived_from_area`.
+    Bridge-level default factors (e.g. a composite legacy task) are copied onto the task so
+    they show up in the explanation. `activity_types="all"` selects every bridged type in
+    config order. Templates on disk are never modified. Returns the tagged task ids.
     """
     log = log or logger
     rates = rates or load_productivity_rates()
@@ -379,6 +436,7 @@ def tag_legacy_pilot_tasks(
         bridge = entry["legacy_template_bridge"]
         kws = bridge.get("match_keywords", [])
         ratio = float(bridge.get("quantity_from_area_ratio", 1.0))
+        engine_hit = resolve_derived_quantity(atype, derived_quantities, rates) if derived_quantities else None
         override = overrides.get(atype, quantity_override)
         for t in tasks:
             if t.get("activity_type") or t.get("milestone"):
@@ -395,9 +453,16 @@ def tag_legacy_pilot_tasks(
             if override is not None:
                 t["quantity"] = float(override)
                 t["quantity_source"] = QTY_MEASURED
+                how = "measured override"
+            elif engine_hit:
+                t["quantity"] = engine_hit["quantity"]
+                t["quantity_source"] = engine_hit["quantity_source"]
+                t["quantity_key"] = engine_hit["quantity_key"]
+                how = f"quantity engine {engine_hit['quantity_key']}"
             else:
                 t["quantity"] = round(float(area_sqm) * ratio, 1)
                 t["quantity_source"] = QTY_DERIVED
+                how = f"legacy bridge {area_sqm:g} × {ratio:g}"
             if bridge.get("factors") and not t.get("factors"):
                 t["factors"] = dict(bridge["factors"])
             if rate_level:
@@ -405,7 +470,7 @@ def tag_legacy_pilot_tasks(
             tagged.append(t["id"])
             log.info(
                 f"  -> [productivity] pilot-tagged task {t['id']} '{name}' as {atype}: "
-                f"quantity={t['quantity']:g}{t['unit']} ({t['quantity_source']})"
+                f"quantity={t['quantity']:g}{t['unit']} ({t['quantity_source']}, {how})"
                 + (f", factors={t['factors']}" if t.get("factors") else "")
                 + (f", rate_level={rate_level}" if rate_level else "")
             )
