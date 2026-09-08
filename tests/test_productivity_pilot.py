@@ -70,8 +70,13 @@ def test_rate_library_single_source():
     check("含 suspended_ceiling", "suspended_ceiling" in rates["activity_types"])
     e = rates["activity_types"]["suspended_ceiling"]
     check("rate/crew/min/unit 字段齐全",
-          all(k in e for k in ("rate_per_worker_day", "default_crew_size", "min_duration_days", "unit", "factors")))
-    check("试点仅一个活动类型（不越界）", len(rates["activity_types"]) == 1, f"{list(rates['activity_types'])}")
+          all(k in e for k in ("rates_per_worker_day", "default_crew_size", "min_duration_days", "unit", "factors")))
+    check("rates_per_worker_day 含 low/typical/high 且 typical=10（试点数值不变）",
+          set(e["rates_per_worker_day"]) == {"low", "typical", "high"} and e["rates_per_worker_day"]["typical"] == 10.0,
+          e["rates_per_worker_day"])
+    # V5-A: scope widened to the four fit-out trades; still nothing beyond the config
+    expected = {"suspended_ceiling", "partition_framing", "flooring", "painting"}
+    check("活动类型 = V5-A 四类（不越界）", set(rates["activity_types"]) == expected, f"{sorted(rates['activity_types'])}")
 
 
 def test_formula_fixture():

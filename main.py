@@ -27,10 +27,29 @@ from core import compliance as _compliance
 # 化繁为简：业务逻辑已提取到独立模块
 from core.calibration import calibrate_durations, validate_complex_construction
 from core.task_utils import clean_procurement_terminology, renumber_tasks_contiguously, fold_exempt_construction_permit
-# v4.2 pilot: quantity → productivity → duration for ONE activity type (suspended_ceiling); templates untouched
-from core.productivity import apply_productivity_durations, tag_legacy_pilot_tasks, productivity_summary
+# v4.2+ : quantity → productivity → duration (suspended_ceiling / partition_framing / flooring / painting);
+#         opt-in only, templates untouched, rates come solely from config/productivity_rates.json
+from core.productivity import (apply_productivity_durations, tag_legacy_pilot_tasks, productivity_summary,
+                               load_productivity_rates, bridged_activity_types)
 # V5-B Quantity Engine v0: benchmark quantities (ceiling/partition/flooring/paint) from area + grade when no BOQ
 from core.quantity_engine import derive_quantities, quantity_table
+
+
+def _parse_quantities(spec: str) -> dict:
+    """'partition_framing=900,flooring=1300' → {'partition_framing': 900.0, 'flooring': 1300.0}"""
+    out = {}
+    for item in (spec or "").split(","):
+        item = item.strip()
+        if not item:
+            continue
+        if "=" not in item:
+            raise SystemExit(f"--quantities 格式错误: '{item}'，应为 activity_type=数值，如 partition_framing=900")
+        k, v = item.split("=", 1)
+        try:
+            out[k.strip()] = float(v)
+        except ValueError:
+            raise SystemExit(f"--quantities 工程量必须为数值: '{item}'")
+    return out
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="PMP Lead PM Scheduler - 主总调度器 (Audit-Hardened Master Orchestrator)")
@@ -48,9 +67,15 @@ def main() -> None:
     parser.add_argument("--no_mpp", action="store_true", default=False, help="跳过物理 MS Project COM 渲染，仅生成 CPM 解算数据与 PDF/PPTX 报表")
     parser.add_argument("--output", type=str, default="Output_Schedule.mpp", help="输出 MPP 文件名称")
     parser.add_argument("--productivity_pilot", action="store_true", default=False,
-                        help="[试点] 天花吊顶(suspended_ceiling)工期改走 工程量→生产率→工期 公式路径；其余节点仍用模板硬编码工期")
+                        help="[试点] 被打标的工序改走 工程量→生产率→工期 公式路径；其余节点仍用模板硬编码工期")
+    parser.add_argument("--pilot_activities", type=str, default="suspended_ceiling",
+                        help="[试点] 逗号分隔的活动类型 (suspended_ceiling,partition_framing,flooring,painting) 或 all；默认仅 suspended_ceiling")
     parser.add_argument("--ceiling_area", type=float, default=None,
-                        help="[试点] 实测吊顶工程量(㎡)。缺省由工程量引擎按 --area × --grade 基准推导(置信度降级)")
+                        help="[试点] 实测吊顶工程量(㎡)，等价于 --quantities suspended_ceiling=<㎡>。缺省由工程量引擎按 --area × --grade 基准推导(置信度降级)")
+    parser.add_argument("--quantities", type=str, default="",
+                        help="[试点] 实测工程量，如 partition_framing=900,flooring=1300,painting=2700。未给出的类型按 工程量引擎 quantity_key 或 --area × 比例推导(置信度降级)")
+    parser.add_argument("--rate_level", type=str, default=None, choices=["low", "typical", "high"],
+                        help="[试点] 选用生产率库中的哪一档 (low=悲观/最长工期, typical=默认, high=乐观)。数值只来自 config，不可自定义")
     parser.add_argument("--grade", type=str, default=None,
                         help="[工程量引擎] 楼宇等级 A|B|C (亦接受 '甲级'/'Grade A')。缺省 A。仅在 --productivity_pilot / --derive_quantities 时生效")
     parser.add_argument("--layout", type=str, default=None, choices=["open_plan", "standard", "cellular"],
@@ -163,15 +188,30 @@ def main() -> None:
         for w in derived_q.get("warnings", []):
             logger.warning(f"  -> [quantity] {w}")
 
-    # 4.5 工程量→生产率→工期 试点（activity_type 开关）。默认关闭：模板节点无 activity_type，
-    #     apply_productivity_durations 为空操作，输出与 v4.1 完全一致。开启后仅天花吊顶节点改走公式。
-    #     工程量优先级：--ceiling_area 实测 → 工程量引擎 ceiling_area → 旧桥接比例 area×0.85。
+    # 4.5 工程量→生产率→工期（activity_type 开关）。默认关闭：模板节点无 activity_type，
+    #     apply_productivity_durations 为空操作，输出与 v4.1 完全一致。开启后仅被打标的工序改走公式。
+    #     工程量优先级：--quantities/--ceiling_area 实测 → 工程量引擎 quantity_key (如 ceiling_area) → 旧桥接比例 area×ratio。
     if args.productivity_pilot:
-        logger.info("Step 2.9: [试点] 工程量→生产率→工期 (suspended_ceiling)...")
-        tagged = tag_legacy_pilot_tasks(tasks, args.area, quantity_override=args.ceiling_area,
+        rates = load_productivity_rates()
+        wanted = [s.strip() for s in args.pilot_activities.split(",") if s.strip()]
+        if "all" in wanted:
+            wanted = bridged_activity_types(rates)
+        unknown = [a for a in wanted if a not in rates["activity_types"]]
+        if unknown:
+            raise SystemExit(f"--pilot_activities 含未知活动类型 {unknown}；可用: {sorted(rates['activity_types'])}")
+        quantities = _parse_quantities(args.quantities)
+        if args.ceiling_area is not None:
+            quantities.setdefault("suspended_ceiling", args.ceiling_area)
+        bad_q = [a for a in quantities if a not in rates["activity_types"]]
+        if bad_q:
+            raise SystemExit(f"--quantities 含未知活动类型 {bad_q}；可用: {sorted(rates['activity_types'])}")
+        logger.info(f"Step 2.9: [试点] 工程量→生产率→工期 activities={wanted} rate_level={args.rate_level or 'default(typical)'} "
+                    f"measured={quantities or '{}'} (rates v{rates.get('version')})...")
+        tagged = tag_legacy_pilot_tasks(tasks, args.area, activity_types=wanted, rates=rates,
+                                        quantity_overrides=quantities, rate_level=args.rate_level,
                                         derived_quantities=derived_q, log=logger)
         if not tagged:
-            logger.warning("  -> [productivity] 模板中未命中任何天花吊顶节点，试点未生效（模板工期照旧）。")
+            logger.warning("  -> [productivity] 模板中未命中任何目标工序节点，试点未生效（模板工期照旧）。")
     tasks = apply_productivity_durations(tasks, log=logger, derived_quantities=derived_q)
 
     if tasks:
@@ -273,14 +313,16 @@ def main() -> None:
         with open(prod_out, "w", encoding="utf-8") as f:
             json.dump({"project_name": args.project_name, "area_sqm": args.area,
                        "start_date": start_date_str, "finish_date": finish_date,
+                       "rate_level": args.rate_level or "default",
+                       "rates_version": prod_rows[0].get("rates_version"),
                        "tasks": prod_rows}, f, ensure_ascii=False, indent=2)
         for r in prod_rows:
             logger.info(
-                f"  -> [productivity][explain] #{r['id']} {r['name']}: quantity={r['quantity']:g}{r['unit']} "
-                f"({r['quantity_source']}), rate={r['productivity_rate']:g} {r['productivity_unit']}, crew={r['crew_size']}, "
+                f"  -> [productivity][explain] #{r['id']} {r['name']}: {r['activity_type']} quantity={r['quantity']:g}{r['unit']} "
+                f"({r['quantity_source']}), rate={r['productivity_rate']:g} {r['productivity_unit']} [{r['rate_level']}], crew={r['crew_size']}, "
                 f"factors={r['factor_labels']} (×{r['factor_product']:g}), calculated={r['calculated_duration']:g}d, "
-                f"final={r['final_duration']}d (template {r['template_duration']}d), confidence={r['confidence']}, "
-                f"{r['start']}→{r['finish']}, critical={r['critical']}"
+                f"final={r['final_duration']}d (template {r['template_duration']}d; by rate level {r['duration_by_rate_level']}), "
+                f"confidence={r['confidence']}, {r['start']}→{r['finish']}, critical={r['critical']}"
             )
         logger.info(f"  -> [productivity] 可解释字段已落盘: {prod_out}")
 
@@ -299,7 +341,10 @@ def main() -> None:
             )
             mpp_written = os.path.exists(output_path)
         except Exception as mpp_err:
-            logger.warning(f"  -> [MPP COM 渲染] 跳过或COM不可用: {mpp_err}")
+            # build_mpp 在非 Windows / 无 pywin32 / 无 MS Project 时抛 MSProjectUnavailableError（明确失败）。
+            # 按 SKILL 失败模式表：不中断 pdf/pptx 交付，但必须如实告知 .mpp 未生成。
+            logger.error(f"  -> [MPP COM 渲染] 失败，本次不会产出 .mpp: {mpp_err}")
+            logger.error("  -> 非 Windows / 无 MS Project 环境请显式使用 --no_mpp；仅 Windows + 桌面版 MS Project 可生成 .mpp。")
 
     # 自动同步导出 A3 打印级任务明细甘特图/表格报表 (.pdf)
     try:

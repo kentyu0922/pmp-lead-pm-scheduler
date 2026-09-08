@@ -8,7 +8,6 @@ core/mpp_renderer.py — 高级项目经理 MS Project COM 物理引擎 (100% �
 import os
 import logging
 from typing import List, Dict, Any, Tuple
-import pywintypes
 import datetime
 
 # 配置独立日志记录器
@@ -20,11 +19,20 @@ try:
         MSProjectSession, CONSTRUCTION_CAL_NAME,
         create_task_with_outline, split_predecessor_id_suffix,
     )
+    from core.msp_session import require_win32
 except ImportError:  # 兼容独立运行
     from _common import (
         MSProjectSession, CONSTRUCTION_CAL_NAME,
         create_task_with_outline, split_predecessor_id_suffix,
     )
+    from msp_session import require_win32
+
+
+def _com_time(value):
+    """datetime/date -> pywintypes.Time。pywintypes 为 Windows-only，仅在 COM 路径内延迟 import，
+    保证本模块在非 Windows 上可被 import（main.py --no_mpp）。"""
+    import pywintypes  # noqa: WPS433 — lazy, Windows-only
+    return pywintypes.Time(value)
 
 try:
     from core.responsibility import annotate_tasks, FIELD_MAP, FIELD_TITLES
@@ -71,7 +79,11 @@ def _inject_responsibility_columns(app, fc_unit, fc_person, fc_flag):
 def build_mpp(project_title: str, project_start: 'datetime.date', tasks: List[Dict[str, Any]], calendar_exceptions: List[Dict[str, str]], output_mpp_path: str) -> Tuple[str, dict]:
     """
     通过 COM 接口生成 MS Project 物理文件 (.mpp) 及无损 XML。
+
+    非 Windows / 无 pywin32 / 无 MS Project：在做任何副作用（建目录、改写 tasks、写 XML）之前
+    立即抛出 MSProjectUnavailableError —— 明确失败，绝不静默产出"疑似 .mpp"。
     """
+    require_win32()
     output_mpp_path = os.path.abspath(output_mpp_path)
     out_dir = os.path.dirname(output_mpp_path)
     if out_dir and not os.path.exists(out_dir):
@@ -114,7 +126,7 @@ def build_mpp(project_title: str, project_start: 'datetime.date', tasks: List[Di
                     _d = project_start
                 else:
                     _d = datetime.datetime(project_start.year, project_start.month, project_start.day)
-                _ps = pywintypes.Time(datetime.datetime(_d.year, _d.month, _d.day, 8, 0, 0))
+                _ps = _com_time(datetime.datetime(_d.year, _d.month, _d.day, 8, 0, 0))
                 project.ProjectStart = _ps
                 logger.info(f"[mpp_renderer] 成功设置项目开工起点(08:00): {_d.date()}")
             except Exception as e:
@@ -295,10 +307,10 @@ def build_mpp(project_title: str, project_start: 'datetime.date', tasks: List[Di
                 # 仅"落在周末且挂施工7天日历"的里程碑(如总包确认周六)用午夜(00:00)以精确锁定该日历日。
                 _anchor = str(constraint.get("anchor", "08:00"))
                 if _anchor == "00:00":
-                    _cdate_obj = pywintypes.Time(datetime.date(_ymd.year, _ymd.month, _ymd.day))
+                    _cdate_obj = _com_time(datetime.date(_ymd.year, _ymd.month, _ymd.day))
                 else:
                     _ah, _am = (int(x) for x in _anchor.split(":")) if ":" in _anchor else (8, 0)
-                    _cdate_obj = pywintypes.Time(datetime.datetime(_ymd.year, _ymd.month, _ymd.day, _ah, _am, 0))
+                    _cdate_obj = _com_time(datetime.datetime(_ymd.year, _ymd.month, _ymd.day, _ah, _am, 0))
                 ct = _CONSTRAINT_MAP.get(ctype, 4)
                 try:
                     curr_task.ConstraintType = ct
@@ -345,10 +357,10 @@ def build_mpp(project_title: str, project_start: 'datetime.date', tasks: List[Di
                 _ymd = _dt.strptime(cdate, "%Y-%m-%d")
                 _anchor = str(constraint.get("anchor", "08:00"))
                 if _anchor == "00:00":
-                    _date_obj = pywintypes.Time(datetime.date(_ymd.year, _ymd.month, _ymd.day))
+                    _date_obj = _com_time(datetime.date(_ymd.year, _ymd.month, _ymd.day))
                 else:
                     _ah, _am = (int(x) for x in _anchor.split(":")) if ":" in _anchor else (8, 0)
-                    _date_obj = pywintypes.Time(datetime.datetime(_ymd.year, _ymd.month, _ymd.day, _ah, _am, 0))
+                    _date_obj = _com_time(datetime.datetime(_ymd.year, _ymd.month, _ymd.day, _ah, _am, 0))
 
                 # 直接写入日期：所有约束类型都用 Start 写入
                 # 原因：设置 Finish 到工作日开始(08:00)时，MS Project 会将 Finish 解释为
