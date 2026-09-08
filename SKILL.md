@@ -80,6 +80,17 @@ Default off. Template hard-coded durations remain the path for every task. Activ
 
 Tests: `python tests/test_productivity_pilot.py` (ceiling fixture 1200㎡ / 10㎡·worker-day / crew 6 / complex 1.2 → 24d; templates unchanged with the pilot off; gate with it on) and `python tests/test_productivity_engine.py` (partition 900㎡/15/6 → 10d, flooring 1350㎡/25/5 → 11d, painting 2700㎡/35/6 → 13d; rate-level ranges; config-only guard; four-trade pipeline through the verification gate).
 
+## Quantity Engine v0 — benchmark quantities without a BOQ
+
+Default off. Derives `ceiling_area, flooring_area, partition_length, partition_area, drywall_partition_area, glass_partition_area, paint_area` from gross `--area` × building grade, deterministically. Formulas live in `core/quantity_engine.py`; every ratio, height, share and sanity band lives only in `config/quantity_benchmarks.json` (grades A/B/C with documented assumptions; layouts `open_plan 0.8 / standard 1.0 / cellular 1.3` on partition density). No LLM guessing, no live lookups.
+
+- `--derive_quantities` — run the engine and write `output_mpp/<output>_quantities.json` (value, unit, substituted formula, per-gross-m² ratio, sanity band, assumptions, warnings). Changes no duration.
+- `--grade A|B|C` (aliases `甲级`, `Grade A`, …; default A) and `--layout open_plan|standard|cellular` (default standard) feed the engine.
+- Hook into the productivity path: when `--productivity_pilot` is on and no measured `--ceiling_area` / `--quantities suspended_ceiling=…` is given, the ceiling quantity comes from the engine's `ceiling_area` via the rate entry's `quantity_key` (precedence: measured → engine → legacy `area × 0.85` bridge). Other pilot trades (`partition_framing`, `flooring`, `painting`) declare no `quantity_key` yet and keep their bridge ratios. Any task list task with `activity_type` but no `quantity` is filled the same way through `apply_productivity_durations(..., derived_quantities=…)`. Derived quantities keep `quantity_source = derived_from_area`, so confidence is downgraded exactly as before.
+- Grade A + standard reproduces the PR #3 pilot number (1500㎡ → 1275㎡ → 22d). Output outside a sanity band is a warning, never silent.
+- Fixture: 1500㎡ Grade A → ceiling 1275㎡, flooring 1380㎡, partition 450 m / 1575㎡, drywall 1023.8㎡, glass 551.2㎡, paint 2569.1㎡. All values are uncalibrated benchmarks; a measured BOQ always wins.
+
+Tests: `python tests/test_quantity_engine.py`.
 ## V5 architecture — iron rule, defaults, engine flags
 
 Iron rule (applies to the agent and to every engine):
@@ -93,11 +104,13 @@ Iron rule (applies to the agent and to every engine):
 |------|---------|---------------|
 | `--productivity_pilot` | off | tagged trades' duration via quantity ÷ (rate × crew) × factors (section above) |
 | `--pilot_activities <list\|all>` | `suspended_ceiling` | which bridged activity types the pilot tags (`suspended_ceiling,partition_framing,flooring,painting` or `all`) |
-| `--ceiling_area <㎡>` / `--quantities type=㎡,…` | derived from `--area × bridge ratio` | measured takeoff per activity type; raises confidence one level |
+| `--ceiling_area <㎡>` / `--quantities type=㎡,…` | Quantity Engine `quantity_key` (ceiling) or `--area × bridge ratio` | measured takeoff per activity type; raises confidence one level |
 | `--rate_level low\|typical\|high` | `typical` | which configured rate-table level applies; values come only from `config/productivity_rates.json` |
+| `--derive_quantities` | off | Quantity Engine v0 (section above); writes `output_mpp/<output>_quantities.json`, changes no duration |
+| `--grade A\|B\|C` / `--layout open_plan\|standard\|cellular` | `A` / `standard` | benchmark inputs for the Quantity Engine; values come only from `config/quantity_benchmarks.json` |
 | `--optimizer` | off | read-only Schedule Optimizer v0 (below); writes `output_mpp/<output>_optimizer.json` |
 
-Not built yet (other cards): quantity takeoff for further activity types, dependency engine, resource/crash optimizer. Do not describe them as available.
+Not built yet (other cards): `quantity_key` wiring for partition / flooring / paint activity types, dependency engine, resource/crash optimizer. Do not describe them as available.
 
 ### Schedule Optimizer v0 (`--optimizer`, `core/optimizer.py`)
 

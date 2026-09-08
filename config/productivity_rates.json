@@ -15,6 +15,7 @@
       "default_crew_size": 6,
       "min_duration_days": 3,
       "base_confidence": "medium",
+      "quantity_key": "ceiling_area",
       "factors": {
         "complexity": {
           "standard": 1.0,
@@ -30,7 +31,7 @@
       "legacy_template_bridge": {
         "match_keywords": ["天花吊顶龙骨", "吊顶龙骨"],
         "quantity_from_area_ratio": 0.85,
-        "note": "Legacy WBS tasks carry no quantity. When the pilot is on, tasks whose name contains a match keyword are tagged suspended_ceiling and quantity = gross area x ratio (net ceiling area). Derived quantity downgrades confidence."
+        "note": "Legacy WBS tasks carry no quantity. When the pilot is on, tasks whose name contains a match keyword are tagged suspended_ceiling and quantity = gross area x ratio (net ceiling area). Derived quantity downgrades confidence. When the Quantity Engine (core/quantity_engine.py, config/quantity_benchmarks.json) supplies derived quantities, the entry's quantity_key (ceiling_area) is used instead of this ratio; the ratio stays as the fallback when no engine output is passed."
       }
     },
     "partition_framing": {
