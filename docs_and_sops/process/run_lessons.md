@@ -14,6 +14,17 @@ Append one block per real schedule run. Newest at top.
 - Follow-up open:
 ```
 
+## 2026-09-07 — Dependency Engine v0: sectional SS+lag rule table (Linux, --no_mpp)
+- Inputs: city=上海, delivery=DBB, bidding=invite, start=2026-08-28; four runs — 1500㎡/320万 (auto), 20000㎡/8000万 (auto), 20000㎡ `--sectional off`, 20000㎡ `--workfronts 2`
+- Result: PASS (tests/test_dependency_engine.py 150/150; tests/test_productivity_pilot.py 58/58; tests/test_v3_basics.py 76/76 with out-of-repo win32/font shim; preflight offline checks PASS; compliance 0 error all runs; no .mpp written)
+- Issues:
+  1. 1500㎡ auto → workfronts=1, not sectional → 0 rules; finish 2027-05-07, identical to the pre-change baseline task-by-task (all four templates, also 280㎡ Suzhou exempt fold).
+  2. 20000㎡ auto → workfronts=8, sectional by area and by workfronts; SEC-01..05 fired: #62 二次机电支管 `59` → `59FF,57SS+3,58SS+3`; #61 墙面封板与天花吊顶龙骨 `59` → `59FF,58SS+4,57SS+4`; #65 天花封石膏板 `63` → `63FF,62SS+4` (lag = ceil(19–24d ÷ 8) clamped to rule range). Finish 2027-12-24 (FS) → 2027-11-16 (sectional). `--workfronts 2` → lags 10–12, finish 2027-11-26 (fewer zones → less overlap, still ≤ FS). Gates stay FF-bound: #61 and #65 finish exactly on their inspection finish.
+  3. `compute_cpm_metrics` treated every link as FS in the backward pass; SS predecessors would have shown false negative float under the new rules. Backward pass now honours SS / FF / lag and mirrors the forward same-day milestone convention. Side effect on 1500㎡: 消防设计审查申报 + its milestone move from slack −7 (artifact) to +3 (true parallel-branch float); critical preview count 74 → 72. Remaining negative preview slack (5-day metrics axis vs 7-day site tasks) is pre-existing and out of scope.
+  4. Pre-existing, unchanged: `exporters/` imports `pywintypes` / `win32com` / `C:\Windows\Fonts\msyh.ttc` at import, so `main.py --no_mpp` and test 8 need a test-only shim outside the repo on Linux.
+- Root cause: template trade links are FS-only through inspection gates; correct for one workfront, over-serial for multi-zone floors.
+- Change made (file): `config/dependency_rules.json`, `core/dependency_engine.py`, `core/solver_engine.py` (compute_cpm_metrics + parse_predecessor_token), `main.py` (`--sectional`, `--workfronts`, `_dependencies.json` sidecar), `scripts/preflight.py`, `tests/test_dependency_engine.py`, `SKILL.md`
+- Follow-up open: calibrate zone size / lag ranges from real sectional programmes; extend rule table to finishing trades (floor → MEP terminals) once field-validated; per-task calendar in CPM preview axis; Windows+MSP e2e with sectional links (SS/FF/lag already pass through `build_mpp` predecessor strings and the XML sidecar).
 ## 2026-09-07 — Quantity Engine v0 (V5-B): benchmark quantities without a BOQ (Linux, --no_mpp)
 - Inputs: city=上海, area=1500, cost=320, delivery=DBB, bidding=invite, start=2026-08-28; five runs: default / `--derive_quantities` / `--productivity_pilot` (grade A default) / `--productivity_pilot --grade C --layout cellular` / `--productivity_pilot --grade 甲级 --ceiling_area 900`
 - Result: PASS (tests/test_quantity_engine.py 102/102; tests/test_productivity_pilot.py 58/58; tests/test_v3_basics.py 76/76; preflight PASS; compliance 0 error in every run)
