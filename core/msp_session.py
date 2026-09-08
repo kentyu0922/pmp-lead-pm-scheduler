@@ -11,16 +11,48 @@ core/msp_session.py — MS Project COM 会话管理与读取助手
   * 读取 Start/Finish：COM 返回的是 pywintypes.datetime（UTC），
     必须 .astimezone() 转本地再取日期，否则跨时区漂移。
   * 上下文管理器自动 CoInitialize / CoUninitialize，避免 COM 套间泄漏。
+  * pywin32 为 Windows-only 依赖：模块级 import 受保护，非 Windows 仍可 import 本模块
+    （main.py --no_mpp 路径），真正触碰 COM 时才通过 require_win32() 明确报错。
 """
 
 import os
 import re
+import sys
 import datetime
-import win32com.client
-import pythoncom
 from typing import Any, Dict, List, Optional
 
+# pywin32 只在 Windows 存在；这里只记录不可用原因，不在 import 阶段抛错。
+try:
+    import win32com.client  # type: ignore
+    import pythoncom  # type: ignore
+    WIN32_IMPORT_ERROR: Optional[BaseException] = None
+except ImportError as _e:  # ModuleNotFoundError 亦为 ImportError 子类
+    win32com = None  # type: ignore
+    pythoncom = None  # type: ignore
+    WIN32_IMPORT_ERROR = _e
+
 PROGID = "MSProject.Application"
+
+WIN32_AVAILABLE: bool = WIN32_IMPORT_ERROR is None
+
+
+class MSProjectUnavailableError(RuntimeError):
+    """MS Project COM 在当前环境不可用（非 Windows / 未装 pywin32 / 未装 Project）。
+
+    只在真正调用 COM 路径（build_mpp / MSProjectSession / read_tasks）时抛出，
+    绝不在模块 import 阶段抛出。调用方应改走 `--no_mpp`，并且不得宣称已写出 .mpp。
+    """
+
+
+def require_win32() -> None:
+    """COM 路径入口守卫：pywin32 不可用时立刻、明确地失败。"""
+    if WIN32_AVAILABLE:
+        return
+    raise MSProjectUnavailableError(
+        "MS Project COM 不可用：需要 Windows + 桌面版 Microsoft Project + pywin32 "
+        f"(当前平台 sys.platform={sys.platform!r}，import 失败: {WIN32_IMPORT_ERROR})。"
+        "非 Windows 环境请使用 `python main.py --no_mpp`，仅交付 .pdf/.pptx，不得宣称已生成 .mpp。"
+    )
 
 
 def com_available() -> bool:
@@ -28,7 +60,10 @@ def com_available() -> bool:
 
     Returns:
         True 表示本机可驱动 MS Project（后续 import/update/export 才可用）。
+        非 Windows / 无 pywin32 时直接返回 False（不抛错）。
     """
+    if not WIN32_AVAILABLE:
+        return False
     try:
         pythoncom.CoInitialize()
         app = win32com.client.DispatchEx(PROGID)
@@ -58,6 +93,7 @@ class MSProjectSession:
     """
 
     def __init__(self, visible: bool = False, display_alerts: bool = False):
+        require_win32()
         pythoncom.CoInitialize()
         try:
             self.app = win32com.client.DispatchEx(PROGID)
