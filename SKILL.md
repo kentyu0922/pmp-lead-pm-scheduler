@@ -58,7 +58,7 @@ Do not run `dev_tools/`. Do not call COM except through `exporters/mpp_renderer.
 
 - City rules and holidays only from `config/` JSON. No live web lookups for statutes.
 - Exempt permit → fold government construction-permit tasks; keep property review and fire path.
-- Predecessor-only links. FS / SS / FF with optional lag allowed. Do not write Successor fields.
+- Predecessor-only links. FS / SS / FF with optional lag allowed. Do not write Successor fields. Sectional SS+lag re-linking comes only from `config/dependency_rules.json` (see below).
 - Dual calendars — design/gov on client workdays; site and purge on construction 7×8 with Spring Festival to Lantern Festival off.
 - Integer workdays. Dual IAQ sequence required.
 - Compliance errors block delivery (`COMPLIANCE_BLOCKED`). Infeasible backward schedule fails loudly.
@@ -91,6 +91,20 @@ Default off. Derives `ceiling_area, flooring_area, partition_length, partition_a
 - Fixture: 1500㎡ Grade A → ceiling 1275㎡, flooring 1380㎡, partition 450 m / 1575㎡, drywall 1023.8㎡, glass 551.2㎡, paint 2569.1㎡. All values are uncalibrated benchmarks; a measured BOQ always wins.
 
 Tests: `python tests/test_quantity_engine.py`.
+## Dependency engine v0 — sectional SS+lag (rule table)
+
+Default templates link site trades FS through the inspection gates. On a *sectional* project (several workfronts) the rule table in `config/dependency_rules.json` re-links the listed trade pairs (partition ↔ MEP, MEP ↔ ceiling) as `SS+lag`. Non-sectional projects are untouched — template FS behaviour stands, byte-for-byte.
+
+- `--sectional auto|on|off` (default `auto`) — `auto` is sectional when `--area >= activation.sectional_area_sqm_min` (5000㎡) **or** workfronts `>= activation.min_workfronts` (2). `on` / `off` force it.
+- `--workfronts N` — explicit zone count. Default `clamp(floor(area / workfront_area_sqm), 1, max_workfronts)` = 2500㎡ per zone, cap 8.
+- Lag is deterministic: `clamp(ceil(predecessor_duration ÷ workfronts), lag_days.min, lag_days.max)` in the successor's calendar workdays.
+- The inspection gate the successor used to wait on (FS) is kept as `FF` so the trade cannot finish before its inspection finishes and no link is left dangling. Summaries and milestones are never re-linked; durations are never changed.
+- Every re-linked task carries `predecessors_before_rules` + `dependency_rules` (rule id, predecessor, lag basis, gate). Sidecar: `output_mpp/<output>_dependencies.json` (decision + reasons + per-task rows). Logs state which rule fired and why, or that none did.
+- Rules only add links to earlier tasks; `validate_dependency_graph` (Kahn's sort) still runs after every solve prep — a cycle blocks with `DEPENDENCY_GRAPH_INVALID`, unknown / forward references are logged as errors.
+- Edit pairs, thresholds and lag ranges in the JSON only. v0 relationships are `SS` only; gate policy `FF` or `drop`.
+
+Tests: `python tests/test_dependency_engine.py` (1500㎡ / 280㎡ exempt on all four templates == v4.1 path task-by-task; 20000㎡ fires SEC-01..05, finishes earlier than FS, graph acyclic, gates 1–7 hold; CPM backward pass honours SS / FF / lag).
+
 ## V5 architecture — iron rule, defaults, engine flags
 
 Iron rule (applies to the agent and to every engine):
@@ -108,9 +122,10 @@ Iron rule (applies to the agent and to every engine):
 | `--rate_level low\|typical\|high` | `typical` | which configured rate-table level applies; values come only from `config/productivity_rates.json` |
 | `--derive_quantities` | off | Quantity Engine v0 (section above); writes `output_mpp/<output>_quantities.json`, changes no duration |
 | `--grade A\|B\|C` / `--layout open_plan\|standard\|cellular` | `A` / `standard` | benchmark inputs for the Quantity Engine; values come only from `config/quantity_benchmarks.json` |
+| `--sectional auto\|on\|off` / `--workfronts N` | `auto` / derived from `--area` | Dependency Engine v0 (section above): sectional SS+lag re-linking from `config/dependency_rules.json`; non-sectional projects keep template FS byte-for-byte; writes `output_mpp/<output>_dependencies.json` when a rule fires |
 | `--optimizer` | off | read-only Schedule Optimizer v0 (below); writes `output_mpp/<output>_optimizer.json` |
 
-Not built yet (other cards): `quantity_key` wiring for partition / flooring / paint activity types, dependency engine, resource/crash optimizer. Do not describe them as available.
+Not built yet (other cards): `quantity_key` wiring for partition / flooring / paint activity types, dependency rules beyond the partition / MEP / ceiling pairs, resource/crash optimizer. Do not describe them as available.
 
 ### Schedule Optimizer v0 (`--optimizer`, `core/optimizer.py`)
 
@@ -126,7 +141,7 @@ Honest limits of v0:
 - It suggests; it does not apply. If the PM accepts a suggestion, edit the successor's predecessor token in the task list / template (or in MS Project) and re-run. When you do, say exactly what changed: task id, `before → after` token, and why. Never apply an optimizer change silently.
 - One heuristic, one ratio (0.5) and one cap (5d), not calibrated to trade data. Only FS→SS overlap; no crashing, no resource levelling, no evaluation of several suggestions together (savings do not add).
 - A driving task can show float > 0 at a calendar boundary (7-day milestone ending Sunday before a 5-day task starting Monday). The optimizer flags this (`calendar_boundary_float`) instead of forcing it to 0; MS Project shows the same slack.
-- The legacy preview `compute_cpm_metrics` (5-day axis, FS-only) still feeds the existing PDF/PPTX `critical` marks and is reported as `legacy_preview_critical_count`; the two counts can disagree. When an `.mpp` is produced, MS Project remains the authority for dates and float.
+- The legacy preview `compute_cpm_metrics` (5-day axis) still feeds the existing PDF/PPTX `critical` marks and is reported as `legacy_preview_critical_count`; the two counts can disagree. When an `.mpp` is produced, MS Project remains the authority for dates and float.
 
 Standalone (no MS Project): `python core/solver_engine.py tasks.json` then `python core/optimizer.py tasks.solved.json --out opt.json`.
 
@@ -144,7 +159,8 @@ Before calling the job done:
 6. Gov/permit tasks not on construction 7-day; trades not forced onto 5-day only
 7. Critical path non-empty in preview metrics
 8. `.mpp` only via `build_mpp`, or `--no_mpp` stated to the user
-9. If `--optimizer` was used — report suggestions as *not applied*; quote saving only from the re-solve (`verified.new_finish`), and if the PM accepts one, state the task id and `before → after` predecessor token before re-running
+9. Dependency graph valid (no cycle / unknown / forward reference); if sectional, each fired rule is logged with its lag basis and the `_dependencies.json` sidecar exists; if not sectional, the log states template FS logic was kept
+10. If `--optimizer` was used — report suggestions as *not applied*; quote saving only from the re-solve (`verified.new_finish`), and if the PM accepts one, state the task id and `before → after` predecessor token before re-running
 
 On failure — fix and regenerate. Do not deliver a known-bad file.
 

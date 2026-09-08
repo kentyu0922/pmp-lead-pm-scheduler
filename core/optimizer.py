@@ -19,7 +19,7 @@ Consumes the output of `solve_schedule` (tasks with start/finish) and produces:
 
 What v0 is NOT: it does not apply anything, does not crash durations, does not add
 resources, and does not evaluate combinations of suggestions. The legacy preview
-`compute_cpm_metrics` (5-day axis, FS-only) is left untouched for report compatibility;
+`compute_cpm_metrics` (5-day axis) is left untouched for report compatibility;
 its count is reported alongside for transparency. MS Project remains the authority for
 final dates/float when an `.mpp` is produced.
 """
@@ -563,7 +563,7 @@ def analyze_schedule(
             "does_not": ["apply changes", "change any duration", "crash / add resources", "evaluate suggestion combinations",
                          "replace MS Project as the authority for final dates and float"],
             "float_unit": FLOAT_UNIT,
-            "legacy_preview_note": "compute_cpm_metrics (5-day axis, FS-only) is unchanged and used by existing reports; its count is shown as legacy_preview_critical_count",
+            "legacy_preview_note": "compute_cpm_metrics (5-day axis) is unchanged and used by existing reports; its count is shown as legacy_preview_critical_count",
         },
         "project": {
             "start": proj_start.isoformat(),
