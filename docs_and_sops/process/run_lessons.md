@@ -14,6 +14,13 @@ Append one block per real schedule run. Newest at top.
 - Follow-up open:
 ```
 
+## 2026-09-07 — Gate4 exempt fold into the automated suite (Linux, no COM)
+- Inputs: fixture = Suzhou 280㎡, 80万, DB + invite, start=2026-11-02 (run_lessons Case 2, previously manual QA only); non-exempt control = Suzhou 1000㎡/250万 same template
+- Result: PASS (tests/test_exempt_fold_gate4.py 90/90; tests/test_productivity_pilot.py 58/58 unchanged; preflight Gate4 step OK — before the lazy-win32 hardening below, only the pre-existing `pywintypes` import failed on Linux; after merging it, preflight passes fully and tests/test_v3_basics.py 76/76 + tests/test_no_win32_import.py 34/34 also pass on the merged tree)
+- Issues: none in fold semantics. Locked as-is: exactly 3 nodes fold per template (施工许可证办理 phase summary, 政府施工许可证申报, [M] 正式取得施工许可证); 物业 / 图审 / 消防 node counts unchanged; Site Takeover predecessors rewired to 图审合格证 + 物业送审 (chained expansion keeps parent suffix, drops removed edge's lag, dedups); no dangling ids; idempotent; `is_exempt=False` returns the same list. Thresholds are strict `<` (300㎡/80万 and 280㎡/100万 are not exempt).
+- Root cause: Gate4 lived only in SKILL.md checklist + a hand-run case; nothing in `tests/` or preflight asserted fold behavior, so a regression would ship silently.
+- Change made (file): `tests/test_exempt_fold_gate4.py` (new), `scripts/preflight.py` (step 3.5 fold smoke gate), `SKILL.md` (Gate 4 test pointer)
+- Follow-up open: no CI runner exists in the repo; the suite is `python tests/*.py` + `python scripts/preflight.py`. The pywintypes blocker is cleared by the hardening entry below, so a Linux CI workflow is now unblocked.
 ## 2026-09-07 — Hardening: lazy/guarded Windows-only deps (Linux, --no_mpp)
 - Inputs: city=上海, area=1500, cost=320, delivery=DBB, bidding=invite, start=2026-08-28; run with `--no_mpp`, with `--no_mpp --productivity_pilot`, and once without `--no_mpp` to exercise the COM failure path
 - Result: PASS (tests/test_v3_basics.py 76/76 — previously crashed at test 8 `import main` on Linux; tests/test_productivity_pilot.py 58/58; new tests/test_no_win32_import.py 34/34; preflight PASS)
