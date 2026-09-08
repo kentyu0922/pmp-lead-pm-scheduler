@@ -6,6 +6,7 @@ preflight.py - v3 上线前预检（归并自 WBTEST 工程纪律层）
   * config/holidays.json 可加载且非空（单源校验）
   * 核心模块可导入（solver_engine / mpp_renderer / holidays）
   * 一次最小正向解算可跑通
+  * SKILL.md Gate4 免办折叠冒烟（苏州 280㎡/80万：许可节点折叠、物业送审保留、无悬空前置）
   * 检测 MS Project COM 可用性（缺则明确告警，不静默崩）
 
 返回 issues 列表；空列表 = 通过。
@@ -92,6 +93,37 @@ def run_preflight(verbose: bool = True) -> list:
                 print("[preflight] 最小正向解算 OK（跨中秋 5 工日 -> 09-28）")
     except Exception as e:
         issues.append(f"最小解算失败: {e}")
+
+    # 3.5) SKILL.md Gate4 免办折叠冒烟：苏州 280㎡/80万（AND_EXEMPT 命中）→ 政府施工许可节点折叠、物业送审保留。
+    #      全量断言见 tests/test_exempt_fold_gate4.py；此处只做最小闸门，防止折叠语义静默回归。
+    try:
+        PE = _load("experts.permit_expert")
+        TU = _load("core.task_utils")
+        with open(os.path.join(BASE, "templates", "wbs_templates.json"), "r", encoding="utf-8") as f:
+            tpl_tasks = json.load(f)["templates"]["MNC_Standard_Fitout_DB_Invite"]["tasks"]
+        permit = PE.query_city_permit_rule("苏州", area_sqm=280, cost_10k_rmb=80)
+        if permit.get("is_exempt") is not True:
+            issues.append(f"Gate4 免办判定异常：苏州 280㎡/80万 应 is_exempt=True，实得 {permit.get('is_exempt')}")
+        else:
+            folded = TU.fold_exempt_construction_permit(json.loads(json.dumps(tpl_tasks)), True)
+            names = [t.get("name", "") for t in folded]
+            alive = {int(t["id"]) for t in folded}
+            permit_left = [n for n in names if any(k in n for k in ("正式取得施工许可证", "施工许可证申报", "施工许可证办理"))]
+            prop_kept = any("物业装修图纸送审" in n for n in names)
+            dangling = [t["id"] for t in folded
+                        for pid, _ in (TU._parse_pred_token(tok) for tok in str(t.get("predecessors", "")).split(",") if tok.strip())
+                        if pid is not None and pid not in alive]
+            if permit_left:
+                issues.append(f"Gate4 免办折叠残留政府许可节点: {permit_left}")
+            if not prop_kept:
+                issues.append("Gate4 免办折叠误删物业送审节点（应保留）")
+            if dangling:
+                issues.append(f"Gate4 免办折叠后存在悬空前置 (task ids): {sorted(set(dangling))}")
+            if not (permit_left or not prop_kept or dangling):
+                if verbose:
+                    print(f"[preflight] Gate4 免办折叠 OK：苏州 280㎡/80万 折叠 {len(tpl_tasks) - len(folded)} 个许可节点，物业送审保留")
+    except Exception as e:
+        issues.append(f"Gate4 免办折叠冒烟失败: {e}")
 
     # 4) MS Project COM 可用性（缺失则告警，不阻断 preflight 通过）
     try:
