@@ -26,8 +26,6 @@ if sys.stderr and hasattr(sys.stderr, 'reconfigure'):
     except Exception:
         pass
 
-import pythoncom
-import win32com.client
 from xml.sax.saxutils import escape
 
 from reportlab.lib.pagesizes import A3, landscape
@@ -46,10 +44,74 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_MPP = os.path.join(BASE, "output_mpp", "Shanghai_Xuhui_1000_DnB.mpp")
 DEFAULT_TITLE = "上海徐汇区 1000㎡ D&B 办公工装项目"
 
-# ---- shared font registration ----
-FONT = r"C:\Windows\Fonts\msyh.ttc"
-pdfmetrics.registerFont(TTFont("CN", FONT, subfontIndex=0))
-pdfmetrics.registerFont(TTFont("CN-Bold", FONT, subfontIndex=1))
+# ---- shared font registration (lazy) ----
+# 原实现在 import 阶段硬编码 C:\Windows\Fonts\msyh.ttc，非 Windows 直接 TTFError 崩溃。
+# 现改为：首次真正导出 PDF 时才解析字体；按候选列表逐个尝试，最终兜底 reportlab 内建
+# CJK CID 字体 STSong-Light（无需任何字体文件，任何平台可用）。
+# 可用环境变量 PMP_PDF_FONT 指定 .ttf/.ttc 路径覆盖。
+FONT = r"C:\Windows\Fonts\msyh.ttc"          # 保留旧常量名（Windows 首选：微软雅黑）
+FONT_CN = "CN"                                # 实际注册的常规字体名（_ensure_fonts 可能改写）
+FONT_CN_BOLD = "CN-Bold"                      # 实际注册的粗体字体名
+FONT_SOURCE = None                            # 解析结果说明（用于日志/测试）
+_FONTS_READY = False
+
+# (路径, 常规 subfontIndex, 粗体 subfontIndex)；.ttc 之外的单字体文件 bold 复用同一字形
+_FONT_CANDIDATES = [
+    (FONT, 0, 1),                                                   # Windows 微软雅黑
+    (r"C:\Windows\Fonts\simhei.ttf", 0, 0),                          # Windows 黑体
+    ("/System/Library/Fonts/PingFang.ttc", 0, 0),                    # macOS
+    ("/System/Library/Fonts/STHeiti Light.ttc", 0, 0),               # macOS (older)
+    ("/Library/Fonts/Arial Unicode.ttf", 0, 0),                      # macOS (Office)
+    ("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc", 0, 0),        # Debian/Ubuntu fonts-wqy-microhei
+    ("/usr/share/fonts/wqy-microhei/wqy-microhei.ttc", 0, 0),        # Fedora/Arch
+    ("/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc", 0, 0),
+    ("/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf", 0, 0),
+    ("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc", 0, 0),
+    ("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", 0, 0),
+]
+
+
+def _try_register_ttf(path, idx_regular, idx_bold):
+    """尝试用一个字体文件注册 CN / CN-Bold；成功返回 True，失败(不存在/CFF轮廓等)返回 False。"""
+    if not path or not os.path.exists(path):
+        return False
+    try:
+        pdfmetrics.registerFont(TTFont("CN", path, subfontIndex=idx_regular))
+        try:
+            pdfmetrics.registerFont(TTFont("CN-Bold", path, subfontIndex=idx_bold))
+        except Exception:
+            pdfmetrics.registerFont(TTFont("CN-Bold", path, subfontIndex=idx_regular))
+        return True
+    except Exception:
+        return False
+
+
+def _ensure_fonts():
+    """惰性注册中文字体。幂等；只在真正构建 PDF 时调用，import 阶段零副作用。"""
+    global _FONTS_READY, FONT_CN, FONT_CN_BOLD, FONT_SOURCE
+    if _FONTS_READY:
+        return FONT_CN, FONT_CN_BOLD
+
+    candidates = []
+    env_font = os.environ.get("PMP_PDF_FONT")
+    if env_font:
+        candidates.append((env_font, 0, 0))
+    candidates.extend(_FONT_CANDIDATES)
+
+    for path, i_reg, i_bold in candidates:
+        if _try_register_ttf(path, i_reg, i_bold):
+            FONT_CN, FONT_CN_BOLD = "CN", "CN-Bold"
+            FONT_SOURCE = path
+            break
+    else:
+        # 兜底：reportlab 内建 CJK CID 字体（Identity-H，无需外部文件；粗体退化为同字形）
+        from reportlab.pdfbase.cidfonts import UnicodeCIDFont
+        pdfmetrics.registerFont(UnicodeCIDFont("STSong-Light"))
+        FONT_CN = FONT_CN_BOLD = "STSong-Light"
+        FONT_SOURCE = "reportlab builtin CID font STSong-Light (no CJK TTF found)"
+
+    _FONTS_READY = True
+    return FONT_CN, FONT_CN_BOLD
 
 
 # ============================================================
@@ -60,7 +122,19 @@ def read_tasks(mpp_path):
 
     Returns (title, tasks) where each task dict carries fields needed by
     both the table and gantt builders.
+
+    Windows-only（MS Project COM）。非 Windows 调用会抛 MSProjectUnavailableError；
+    pywin32 只在这里延迟 import，保证本模块可在任意平台被 import。
     """
+    try:
+        from core.msp_session import require_win32
+    except ImportError:  # 独立运行 exporters/ 时的兜底
+        sys.path.insert(0, os.path.dirname(BASE))
+        from core.msp_session import require_win32
+    require_win32()
+    import pythoncom  # noqa: WPS433 — lazy, Windows-only
+    import win32com.client  # noqa: WPS433 — lazy, Windows-only
+
     pythoncom.CoInitialize()
     app = win32com.client.DispatchEx("MSProject.Application")
     app.Visible = False
@@ -143,6 +217,7 @@ def read_tasks(mpp_path):
 # Format 1: Table PDF
 # ============================================================
 def build_table_pdf(tasks, out_path, title=DEFAULT_TITLE):
+    _ensure_fonts()
     doc = BaseDocTemplate(out_path, pagesize=landscape(A3),
                           leftMargin=36, rightMargin=36, topMargin=70, bottomMargin=58,
                           title=title)
@@ -151,12 +226,12 @@ def build_table_pdf(tasks, out_path, title=DEFAULT_TITLE):
     name_w = usable - fixed
     colWidths = [46, name_w, 56, 80, 80, 90]
 
-    header_style = ParagraphStyle("hdr", fontName="CN-Bold", fontSize=9,
+    header_style = ParagraphStyle("hdr", fontName=FONT_CN_BOLD, fontSize=9,
                                    leading=11, textColor=colors.black, alignment=TA_CENTER)
-    name_base = ParagraphStyle("nb", fontName="CN", fontSize=8.5, leading=11,
+    name_base = ParagraphStyle("nb", fontName=FONT_CN, fontSize=8.5, leading=11,
                                textColor=colors.black, alignment=TA_LEFT)
-    name_bold = ParagraphStyle("nb_b", parent=name_base, fontName="CN-Bold")
-    cell_center = ParagraphStyle("cc", fontName="CN", fontSize=8.5, leading=11,
+    name_bold = ParagraphStyle("nb_b", parent=name_base, fontName=FONT_CN_BOLD)
+    cell_center = ParagraphStyle("cc", fontName=FONT_CN, fontSize=8.5, leading=11,
                                  textColor=colors.black, alignment=TA_CENTER)
 
     def name_cell(task):
@@ -187,7 +262,7 @@ def build_table_pdf(tasks, out_path, title=DEFAULT_TITLE):
 
     ts = TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#D9D9D9")),
-        ("FONTNAME", (0, 0), (-1, 0), "CN-Bold"),
+        ("FONTNAME", (0, 0), (-1, 0), FONT_CN_BOLD),
         ("FONTSIZE", (0, 0), (-1, -1), 8.5),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#BBBBBB")),
@@ -203,16 +278,16 @@ def build_table_pdf(tasks, out_path, title=DEFAULT_TITLE):
     def on_page(canvas_obj, d):
         canvas_obj.saveState()
         w, h = d.pagesize
-        canvas_obj.setFont("CN-Bold", 11)
+        canvas_obj.setFont(FONT_CN_BOLD, 11)
         canvas_obj.setFillColor(colors.black)
         canvas_obj.drawString(36, h - 38, "%s — 进度计划 (V3)" % title)
-        canvas_obj.setFont("CN", 8)
+        canvas_obj.setFont(FONT_CN, 8)
         canvas_obj.drawRightString(w - 36, h - 38,
                                    "导出日期：%s    第 %d 页" % (datetime.date.today().isoformat(), d.page))
         canvas_obj.setStrokeColor(colors.HexColor("#888888"))
         canvas_obj.setLineWidth(0.6)
         canvas_obj.line(36, h - 45, w - 36, h - 45)
-        canvas_obj.setFont("CN", 7.5)
+        canvas_obj.setFont(FONT_CN, 7.5)
         canvas_obj.setFillColor(colors.HexColor("#444444"))
         legend = ("图例：任务名称缩进表示层级深度（层级越深缩进越多）；名称前缀 [M] 为里程碑；"
                   "工期以工作日计；\u201c前置任务\u201d为上游任务序号（WBS 编号）。本表由 MPP 原始排程导出，仅供打印审阅。")
@@ -249,6 +324,7 @@ LW = 470
 
 
 def build_gantt_pdf(title, tasks, out_path):
+    _ensure_fonts()
     # filter tasks that have valid dates
     gantt_tasks = [t for t in tasks if t["sd"] and t["fd"]]
     if not gantt_tasks:
@@ -285,9 +361,9 @@ def build_gantt_pdf(title, tasks, out_path):
         c.setFillColor(NAVY)
         c.rect(0, H - header_h, W, header_h, fill=1, stroke=0)
         c.setFillColor(colors.white)
-        c.setFont("CN-Bold", 15)
+        c.setFont(FONT_CN_BOLD, 15)
         c.drawString(margin_x, H - header_h + 16, title)
-        c.setFont("CN", 8)
+        c.setFont(FONT_CN, 8)
         c.drawRightString(W - margin_x, H - header_h + 18,
                           "导出日期：%s    第 %d 页 / 共 %d 页" % (today, pi, len(pages)))
         c.setStrokeColor(GOLD)
@@ -298,7 +374,7 @@ def build_gantt_pdf(title, tasks, out_path):
         c.setFillColor(NAVY)
         c.rect(0, y_top, chart_x0, axis_h, fill=1, stroke=0)
         c.setFillColor(colors.white)
-        c.setFont("CN-Bold", 8)
+        c.setFont(FONT_CN_BOLD, 8)
         for ctitle, cx, cw in LEFT_COLS:
             c.drawString(margin_x + cx, y_top + 6, ctitle)
         c.setStrokeColor(NAVY)
@@ -313,7 +389,7 @@ def build_gantt_pdf(title, tasks, out_path):
             c.setLineWidth(0.4)
             c.line(nx, y_bot, nx, y_top)
             c.setFillColor(NAVY)
-            c.setFont("CN", 7)
+            c.setFont(FONT_CN, 7)
             c.drawString(nx + 2, y_top + 5, "%d-%02d" % (d.year, d.month))
             ny = d.year + (1 if d.month == 12 else 0)
             nm = 1 if d.month == 12 else d.month + 1
@@ -328,7 +404,7 @@ def build_gantt_pdf(title, tasks, out_path):
             cy = y - row_h / 2
             indent = (t["level"] - 1) * 10
             is_bold = t["summary"]
-            c.setFont("CN", 7.5)
+            c.setFont(FONT_CN, 7.5)
             c.setFillColor(INK)
             c.drawString(margin_x + LEFT_COLS[0][1], cy - 3, t["no"])
             avail = LEFT_COLS[1][2] - indent - 4
@@ -336,9 +412,9 @@ def build_gantt_pdf(title, tasks, out_path):
             nm = t["name"]
             if len(nm) > maxc:
                 nm = nm[:maxc - 1] + "…"
-            c.setFont("CN-Bold" if is_bold else "CN", 7.5)
+            c.setFont(FONT_CN_BOLD if is_bold else FONT_CN, 7.5)
             c.drawString(margin_x + LEFT_COLS[1][1] + indent, cy - 3, nm)
-            c.setFont("CN", 7.5)
+            c.setFont(FONT_CN, 7.5)
             dur_str = ("%d天" % t["dur"]) if t["dur"] else ""
             c.drawString(margin_x + LEFT_COLS[2][1], cy - 3, dur_str)
             c.drawString(margin_x + LEFT_COLS[3][1], cy - 3, t["sd"].isoformat())
@@ -361,14 +437,14 @@ def build_gantt_pdf(title, tasks, out_path):
                 p.lineTo(ex - dd, cy)
                 p.close()
                 c.drawPath(p, fill=1, stroke=0)
-                c.setFont("CN", 7)
+                c.setFont(FONT_CN, 7)
                 c.setFillColor(INK)
                 c.drawString(ex + 7, cy - 3, t["sd"].isoformat())
             elif t["summary"]:
                 ex = chart_x0 + (t["fd"] - min_d).days * pxd
                 c.setFillColor(SLATE)
                 c.rect(sx, cy - 3, max(ex - sx, 2), 6, fill=1, stroke=0)
-                c.setFont("CN", 7)
+                c.setFont(FONT_CN, 7)
                 c.setFillColor(INK)
                 c.drawCentredString((sx + ex) / 2, cy - 11,
                                     "%s ~ %s" % (t["sd"].isoformat(), t["fd"].isoformat()))
@@ -382,7 +458,7 @@ def build_gantt_pdf(title, tasks, out_path):
         c.setFillColor(NAVY)
         c.rect(0, 0, W, footer_h, fill=1, stroke=0)
         c.setFillColor(colors.white)
-        c.setFont("CN", 8)
+        c.setFont(FONT_CN, 8)
         legend = ("图例：◆ 金色菱形 = 里程碑（标注开始/结束日期）   |   ▬ 深灰粗条 = 阶段/汇总节点（标注起止）"
                   "   |   ▭ 蓝色条 = 普通任务   |   名称缩进 = 任务层级")
         c.drawString(margin_x, footer_h / 2 - 3, legend)
