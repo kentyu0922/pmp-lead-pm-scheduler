@@ -306,7 +306,10 @@ def main() -> None:
             )
             mpp_written = os.path.exists(output_path)
         except Exception as mpp_err:
-            logger.warning(f"  -> [MPP COM 渲染] 跳过或COM不可用: {mpp_err}")
+            # build_mpp 在非 Windows / 无 pywin32 / 无 MS Project 时抛 MSProjectUnavailableError（明确失败）。
+            # 按 SKILL 失败模式表：不中断 pdf/pptx 交付，但必须如实告知 .mpp 未生成。
+            logger.error(f"  -> [MPP COM 渲染] 失败，本次不会产出 .mpp: {mpp_err}")
+            logger.error("  -> 非 Windows / 无 MS Project 环境请显式使用 --no_mpp；仅 Windows + 桌面版 MS Project 可生成 .mpp。")
 
     # 自动同步导出 A3 打印级任务明细甘特图/表格报表 (.pdf)
     try:

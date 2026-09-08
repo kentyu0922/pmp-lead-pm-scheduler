@@ -50,6 +50,8 @@ Backward example — replace `--start_date` with `--target_date 2027-09-14`.
 
 No Project / non-Windows — add `--no_mpp`. Solver still writes `.pdf` and milestone `.pptx`. `.xml` may exist as a Project interchange sidecar; do not present HTML as a deliverable.
 
+Windows-only deps (`pywin32`, `C:\Windows\Fonts\msyh.ttc`) are imported/resolved lazily: `import main` and `--no_mpp` work on Linux/macOS; touching COM (`build_mpp`, `MSProjectSession`, `export_pdf.read_tasks`) raises `MSProjectUnavailableError`. PDF falls back to a system CJK font, then to reportlab's built-in `STSong-Light`; override with `PMP_PDF_FONT=/path/to/font.ttf`. Test: `python tests/test_no_win32_import.py`.
+
 Do not run `dev_tools/`. Do not call COM except through `exporters/mpp_renderer.py` → `build_mpp`.
 
 ## Solve rules (do not reimplement)
@@ -92,6 +94,8 @@ Before calling the job done:
 8. `.mpp` only via `build_mpp`, or `--no_mpp` stated to the user
 
 On failure — fix and regenerate. Do not deliver a known-bad file.
+
+Gate 4 is automated, not manual-only: `python tests/test_exempt_fold_gate4.py` (Suzhou 280㎡ / 80万 / DB + invite / start 2026-11-02 — permit phase, application and 正式取得施工许可证 milestone folded; property review, 图审 and fire path retained; Site Takeover rewired to 图审 + 物业送审; compliance 0 error; all four templates; non-exempt control keeps the permit milestone). `scripts/preflight.py` runs the same fold as a smoke gate.
 
 ## Failure modes
 
