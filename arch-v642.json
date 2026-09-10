@@ -1,0 +1,249 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "AI Lead PM Fit-out Planning Engine 系统架构",
+    "subtitle": "确定性商业工装进度推演与排期引擎 (V6.4.2 Unknown-State Hardened)",
+    "output": "arch-v642.html",
+    "quality_profile": "showcase",
+    "animation": "trace",
+    "visual_preset": "editorial",
+    "locale": "zh-CN",
+    "views": [
+      {
+        "id": "main-pipeline",
+        "label": "核心进度推演链路",
+        "focus": [
+          "cli_entry",
+          "wbs_quantity",
+          "spatial_dependency",
+          "cpm_solver",
+          "compliance_gate",
+          "mpp_renderer"
+        ],
+        "note": "从四锚点参数出发，展开36项工序并建立拓扑网络，求解CPM关键链并生成交付计划。"
+      },
+      {
+        "id": "v642-hardening",
+        "label": "V6.4.2 状态加固层",
+        "focus": [
+          "config_ssot",
+          "calendar_semantics",
+          "conditional_engine",
+          "cpm_solver",
+          "compliance_gate"
+        ],
+        "note": "13类活动日历多维语义解耦（杜绝全局7D蔓延），以及 UNKNOWN 非零非假的条件暴露推演。"
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "cli_entry",
+      "type": "frontend",
+      "label": "CLI 编排与四锚点",
+      "sublabel": "main.py (四锚点输入)",
+      "tag": "参数输入",
+      "pos": [40, 160],
+      "size": [160, 64],
+      "brand": "python"
+    },
+    {
+      "id": "config_ssot",
+      "type": "database",
+      "label": "单一事实规则库",
+      "sublabel": "config/*.json (单一事实源)",
+      "tag": "规则体系",
+      "pos": [40, 360],
+      "size": [160, 64]
+    },
+    {
+      "id": "wbs_quantity",
+      "type": "backend",
+      "label": "WBS与算量引擎",
+      "sublabel": "fitout_wbs + quantity",
+      "tag": "36项物理量",
+      "pos": [260, 160],
+      "size": [160, 64]
+    },
+    {
+      "id": "calendar_semantics",
+      "type": "backend",
+      "label": "活动日历语义解耦",
+      "sublabel": "activity_calendar.py",
+      "tag": "13类日历解耦",
+      "pos": [260, 360],
+      "size": [160, 64]
+    },
+    {
+      "id": "spatial_dependency",
+      "type": "backend",
+      "label": "工序依存与双重IAQ",
+      "sublabel": "dependency + spatial",
+      "tag": "FS/SS+lag/双IAQ",
+      "pos": [480, 160],
+      "size": [160, 64]
+    },
+    {
+      "id": "conditional_engine",
+      "type": "backend",
+      "label": "不确定性条件推演",
+      "sublabel": "conditional_engine.py",
+      "tag": "UNKNOWN状态机",
+      "pos": [480, 360],
+      "size": [160, 64]
+    },
+    {
+      "id": "cpm_solver",
+      "type": "backend",
+      "label": "确定性 CPM 求解器",
+      "sublabel": "solver_engine.py",
+      "tag": "双日历网络解算",
+      "pos": [700, 260],
+      "size": [160, 64],
+      "brand": "python"
+    },
+    {
+      "id": "compliance_gate",
+      "type": "security",
+      "label": "合规门禁与确定度",
+      "sublabel": "compliance + certainty",
+      "tag": "10项红线审计",
+      "pos": [920, 260],
+      "size": [160, 64]
+    },
+    {
+      "id": "mpp_renderer",
+      "type": "cloud",
+      "label": "MS Project 导出",
+      "sublabel": "mpp_renderer.py",
+      "tag": "原生COM/.mpp",
+      "pos": [1140, 180],
+      "size": [160, 64],
+      "brand": "dotnet"
+    },
+    {
+      "id": "doc_exporters",
+      "type": "backend",
+      "label": "多渠道文档交付",
+      "sublabel": "pdf + pptx + sidecars",
+      "tag": "报表与旁路",
+      "pos": [1140, 340],
+      "size": [160, 64]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "输入与事实源 (SSOT)",
+      "wraps": ["cli_entry", "config_ssot"]
+    },
+    {
+      "kind": "security-group",
+      "label": "确定性工装排期核心 (V6.4.2 Hardened Engine)",
+      "wraps": [
+        "wbs_quantity",
+        "calendar_semantics",
+        "spatial_dependency",
+        "conditional_engine",
+        "cpm_solver",
+        "compliance_gate"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "多渠道成果交付",
+      "wraps": ["mpp_renderer", "doc_exporters"]
+    }
+  ],
+  "connections": [
+    {
+      "id": "cli-to-wbs",
+      "from": "cli_entry",
+      "to": "wbs_quantity",
+      "label": "锚点参数",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "config-to-calendar",
+      "from": "config_ssot",
+      "to": "calendar_semantics",
+      "label": "日历规则",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "wbs-to-calendar",
+      "from": "wbs_quantity",
+      "to": "calendar_semantics",
+      "label": "活动分类",
+      "labelDy": 40,
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "wbs-to-spatial",
+      "from": "wbs_quantity",
+      "to": "spatial_dependency",
+      "label": "36项工序",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "calendar-to-conditional",
+      "from": "calendar_semantics",
+      "to": "conditional_engine",
+      "label": "非全局蔓延",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "spatial-to-cpm",
+      "from": "spatial_dependency",
+      "to": "cpm_solver",
+      "label": "前置拓扑网",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "conditional-to-cpm",
+      "from": "conditional_engine",
+      "to": "cpm_solver",
+      "label": "8态暴露推演",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "cpm-to-gate",
+      "from": "cpm_solver",
+      "to": "compliance_gate",
+      "label": "网络解算",
+      "fromSide": "right",
+      "toSide": "left",
+      "variant": "security"
+    },
+    {
+      "id": "gate-to-mpp",
+      "from": "compliance_gate",
+      "to": "mpp_renderer",
+      "label": "基线计划",
+      "fromSide": "top",
+      "toSide": "left"
+    },
+    {
+      "id": "gate-to-docs",
+      "from": "compliance_gate",
+      "to": "doc_exporters",
+      "label": "报告与凭据",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "left"
+    }
+  ]
+}
