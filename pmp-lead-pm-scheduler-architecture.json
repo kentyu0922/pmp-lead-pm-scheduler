@@ -1,0 +1,369 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "PMP 商业工装主进度智能推演引擎架构",
+    "subtitle": "确定性工程进度推演与排期架构 (V6.4 生产候选版)",
+    "output": "pmp-lead-pm-scheduler-architecture.html",
+    "quality_profile": "showcase",
+    "locale": "zh-CN",
+    "views": [
+      {
+        "id": "core-pipeline",
+        "label": "核心进度推演链路",
+        "focus": [
+          "cli_entry",
+          "wbs_quantity",
+          "spatial_dependency",
+          "cpm_solver",
+          "compliance_gate"
+        ],
+        "note": "从4项用户锚点参数出发，展开36项工序并测算工程量，最终生成确定性CPM网络。"
+      },
+      {
+        "id": "resource-modeling",
+        "label": "资源与班组治理模型",
+        "focus": [
+          "config_kb",
+          "productivity_engine",
+          "resource_governance",
+          "cpm_solver"
+        ],
+        "note": "工日需求推导、班组容量上限、非线性拥挤折减与工种空间干扰矩阵。"
+      },
+      {
+        "id": "delivery-optimization",
+        "label": "合规门禁与多端交付",
+        "focus": [
+          "compliance_gate",
+          "scenario_optimizer",
+          "mpp_renderer",
+          "doc_exporters"
+        ],
+        "note": "10项全自动合规门禁审计、多方案占优前沿推演，以及原生MPP/PDF多渠道交付。"
+      }
+    ],
+    "animation": "trace",
+    "visual_preset": "signal-flow"
+  },
+  "components": [
+    {
+      "id": "cli_entry",
+      "type": "frontend",
+      "label": "CLI 编排入口",
+      "sublabel": "main.py (4项锚点)",
+      "tag": "参数输入",
+      "pos": [
+        40,
+        160
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "brand": "python"
+    },
+    {
+      "id": "config_kb",
+      "type": "database",
+      "label": "领域知识与规则库",
+      "sublabel": "config/*.json (单一来源)",
+      "tag": "10大领域规则",
+      "pos": [
+        40,
+        360
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "wbs_quantity",
+      "type": "backend",
+      "label": "WBS与工程量引擎",
+      "sublabel": "fitout_wbs + quantity",
+      "tag": "36项物理工序",
+      "pos": [
+        240,
+        160
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "productivity_engine",
+      "type": "backend",
+      "label": "生产率与工日引擎",
+      "sublabel": "productivity_evidence",
+      "tag": "L1-L3层级规范",
+      "pos": [
+        240,
+        360
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "spatial_dependency",
+      "type": "backend",
+      "label": "工序依赖与空间模型",
+      "sublabel": "dependency + spatial",
+      "tag": "FS/SS/FF+双IAQ",
+      "pos": [
+        450,
+        160
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "resource_governance",
+      "type": "backend",
+      "label": "资源与班组治理引擎",
+      "sublabel": "resource_model + gov",
+      "tag": "拥挤度与干扰矩阵",
+      "pos": [
+        450,
+        360
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "cpm_solver",
+      "type": "backend",
+      "label": "确定性 CPM 求解器",
+      "sublabel": "solver_engine.py",
+      "tag": "双日历(5天/7x8)",
+      "pos": [
+        660,
+        260
+      ],
+      "size": [
+        160,
+        64
+      ],
+      "brand": "python"
+    },
+    {
+      "id": "compliance_gate",
+      "type": "security",
+      "label": "合规与质量门禁",
+      "sublabel": "compliance + quality",
+      "tag": "10项硬性审计",
+      "pos": [
+        870,
+        260
+      ],
+      "size": [
+        160,
+        64
+      ]
+    },
+    {
+      "id": "scenario_optimizer",
+      "type": "backend",
+      "label": "多方案优化器",
+      "sublabel": "scenario_optimizer",
+      "tag": "占优前沿(基线冻结)",
+      "pos": [
+        1100,
+        140
+      ],
+      "size": [
+        150,
+        64
+      ]
+    },
+    {
+      "id": "mpp_renderer",
+      "type": "cloud",
+      "label": "MS Project 导出",
+      "sublabel": "mpp_renderer.py",
+      "tag": "原生COM与XML",
+      "pos": [
+        1100,
+        260
+      ],
+      "size": [
+        150,
+        64
+      ],
+      "brand": "dotnet"
+    },
+    {
+      "id": "doc_exporters",
+      "type": "backend",
+      "label": "报表与凭据交付",
+      "sublabel": "pdf + pptx + sidecars",
+      "tag": "多渠道交付",
+      "pos": [
+        1100,
+        380
+      ],
+      "size": [
+        150,
+        64
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "输入与单一事实来源 (SSOT)",
+      "wraps": [
+        "cli_entry",
+        "config_kb"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "确定性商业工装进度推演核心 (V6 Engine)",
+      "wraps": [
+        "wbs_quantity",
+        "productivity_engine",
+        "spatial_dependency",
+        "resource_governance",
+        "cpm_solver",
+        "compliance_gate"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "方案优化与多渠道交付",
+      "wraps": [
+        "scenario_optimizer",
+        "mpp_renderer",
+        "doc_exporters"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "cli-to-wbs",
+      "from": "cli_entry",
+      "to": "wbs_quantity",
+      "label": "锚点参数",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "config-to-productivity",
+      "from": "config_kb",
+      "to": "productivity_engine",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "wbs-to-productivity",
+      "from": "wbs_quantity",
+      "to": "productivity_engine",
+      "label": "工程量",
+      "labelDy": 40,
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "wbs-to-spatial",
+      "from": "wbs_quantity",
+      "to": "spatial_dependency",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "productivity-to-resource",
+      "from": "productivity_engine",
+      "to": "resource_governance",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "spatial-to-cpm",
+      "from": "spatial_dependency",
+      "to": "cpm_solver",
+      "label": "前置网络",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "resource-to-cpm",
+      "from": "resource_governance",
+      "to": "cpm_solver",
+      "label": "班组约束",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "cpm-to-gate",
+      "from": "cpm_solver",
+      "to": "compliance_gate",
+      "fromSide": "right",
+      "toSide": "left",
+      "variant": "security"
+    },
+    {
+      "id": "gate-to-optimizer",
+      "from": "compliance_gate",
+      "to": "scenario_optimizer",
+      "label": "候选方案",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "left"
+    },
+    {
+      "id": "gate-to-mpp",
+      "from": "compliance_gate",
+      "to": "mpp_renderer",
+      "label": "基线计划",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "gate-to-docs",
+      "from": "compliance_gate",
+      "to": "doc_exporters",
+      "label": "交付物",
+      "fromSide": "bottom",
+      "toSide": "left"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "确定性推演机制",
+      "items": [
+        "10大领域 JSON 构成不可妥协的单一事实来源",
+        "工期依据物理工程量与标准效率公式推导，杜绝大模型捏造工期",
+        "严谨双日历系统：5天业主/设计日历与7×8连续施工日历解耦"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "资源与班组治理",
+      "items": [
+        "按分区测算作业面承载力，引入非线性工人拥挤折减模型",
+        "核心工种空间交叉干扰矩阵（Trade Interference）防范冲突",
+        "三阶资源治理状态机：Required（需求）→ Authorised（批准）→ Committed（承诺）"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "合规门禁与多端交付",
+      "items": [
+        "10项全自动严苛合规门禁（免办折叠、双重空气治理链、关键路径非空）",
+        "多方案优化器严格保护基准工期不可变，提供帕累托最优并行比选",
+        "支持 Windows COM 原生生成 Microsoft Project (.mpp)、XML 及 PDF/PPTX 报告"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,330 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "PMP 商业工装主进度端到端工序流",
+    "subtitle": "中国大陆商业办公精装修全周期工序逻辑与合规门禁网络 (36项物理工序)",
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "locale": "zh-CN",
+    "views": [
+      {
+        "id": "construction-path",
+        "label": "施工主干路线",
+        "focus": [
+          "bidding_kickoff",
+          "permit_approval",
+          "demolition_clearing",
+          "mep_roughin",
+          "concealed_inspection",
+          "drywall_finishes",
+          "painting_ceiling",
+          "iaq_initial_cure",
+          "furniture_iaq",
+          "project_handover"
+        ],
+        "note": "从商务立项到硬装施工及最终验收交付的全生命周期主干。"
+      },
+      {
+        "id": "mep-drywall-gate",
+        "label": "隐蔽工程与封板门禁",
+        "focus": [
+          "mep_roughin",
+          "concealed_inspection",
+          "drywall_finishes"
+        ],
+        "note": "机电管线铺设、打压试水与隐蔽工程验收，严格执行FS前置门禁方可封板。"
+      },
+      {
+        "id": "iaq-dual-chain",
+        "label": "双重IAQ空气治理链",
+        "focus": [
+          "painting_ceiling",
+          "iaq_initial_cure",
+          "furniture_iaq",
+          "project_handover"
+        ],
+        "note": "首次IAQ治理 -> 家具进场释放源叠加 -> 通风散味 -> 二次CMA复测达标交付。"
+      }
+    ],
+    "output": "pmp-lead-pm-scheduler-workflow.html"
+  },
+  "lanes": [
+    {
+      "id": "client_gov",
+      "label": "业主与行政报审"
+    },
+    {
+      "id": "site_prep",
+      "label": "场地与拆除工程"
+    },
+    {
+      "id": "mep_concealed",
+      "label": "机电与隐蔽管线"
+    },
+    {
+      "id": "finishes",
+      "label": "隔墙与精装饰面"
+    },
+    {
+      "id": "iaq_delivery",
+      "label": "空气治理与交付"
+    }
+  ],
+  "phases": [
+    {
+      "id": "prep",
+      "label": "商务立项与报审",
+      "fromCol": 0,
+      "toCol": 1
+    },
+    {
+      "id": "construction",
+      "label": "拆除机电与隔墙",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "delivery",
+      "label": "饰面治理与竣工",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "dashed"
+    }
+  ],
+  "groups": [
+    {
+      "id": "permit_group",
+      "label": "合规报审门禁",
+      "lane": "client_gov",
+      "fromCol": 0,
+      "toCol": 1,
+      "variant": "security"
+    },
+    {
+      "id": "inspection_group",
+      "label": "隐蔽验收控制",
+      "lane": "mep_concealed",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "security"
+    },
+    {
+      "id": "iaq_group",
+      "label": "双重IAQ空气治理体系",
+      "lane": "iaq_delivery",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "emphasis"
+    }
+  ],
+  "mainPath": [
+    "bidding_kickoff",
+    "permit_approval",
+    "site_takeover",
+    "demolition_clearing",
+    "mep_roughin",
+    "concealed_inspection",
+    "drywall_finishes",
+    "painting_ceiling",
+    "iaq_initial_cure",
+    "furniture_iaq",
+    "project_handover"
+  ],
+  "nodes": [
+    {
+      "id": "bidding_kickoff",
+      "lane": "client_gov",
+      "col": 0,
+      "type": "external",
+      "label": "招标与合同立项",
+      "sublabel": "DB/DBB模式确定",
+      "width": 136
+    },
+    {
+      "id": "permit_approval",
+      "lane": "client_gov",
+      "col": 1,
+      "type": "security",
+      "label": "施工许可与物业报审",
+      "sublabel": "免办折叠/报审门禁",
+      "tag": "Gate 4 门禁",
+      "width": 136
+    },
+    {
+      "id": "site_takeover",
+      "lane": "site_prep",
+      "col": 1,
+      "type": "backend",
+      "label": "现场交接与准备",
+      "sublabel": "临时水电/放线定位",
+      "width": 136
+    },
+    {
+      "id": "demolition_clearing",
+      "lane": "site_prep",
+      "col": 2,
+      "type": "backend",
+      "label": "拆除清运与基面",
+      "sublabel": "垃圾外运/地坪打磨",
+      "width": 136
+    },
+    {
+      "id": "mep_roughin",
+      "lane": "mep_concealed",
+      "col": 2,
+      "type": "backend",
+      "label": "机电管线与消防",
+      "sublabel": "强弱电/喷淋/新风",
+      "width": 136
+    },
+    {
+      "id": "concealed_inspection",
+      "lane": "mep_concealed",
+      "col": 3,
+      "type": "security",
+      "label": "隐蔽工程验收",
+      "sublabel": "打压试水与封堵",
+      "tag": "FS 放行门禁",
+      "width": 136
+    },
+    {
+      "id": "drywall_finishes",
+      "lane": "finishes",
+      "col": 3,
+      "type": "backend",
+      "label": "轻钢龙骨与泥瓦",
+      "sublabel": "石膏板封板/防水地砖",
+      "width": 136
+    },
+    {
+      "id": "painting_ceiling",
+      "lane": "finishes",
+      "col": 4,
+      "type": "backend",
+      "label": "油漆腻子与吊顶",
+      "sublabel": "两底三面/灯具安装",
+      "width": 136
+    },
+    {
+      "id": "iaq_initial_cure",
+      "lane": "iaq_delivery",
+      "col": 4,
+      "type": "security",
+      "label": "初次空气检测治理",
+      "sublabel": "高温熏蒸与光触媒",
+      "tag": "第1次IAQ",
+      "width": 136
+    },
+    {
+      "id": "furniture_iaq",
+      "lane": "iaq_delivery",
+      "col": 5,
+      "type": "backend",
+      "label": "家具进场与二次IAQ",
+      "sublabel": "软装拼装/CMA达标复测",
+      "tag": "终测门禁",
+      "width": 136
+    },
+    {
+      "id": "project_handover",
+      "lane": "client_gov",
+      "col": 5,
+      "type": "frontend",
+      "label": "消防验收与竣工交付",
+      "sublabel": "移交钥匙/保修期开始",
+      "width": 136
+    }
+  ],
+  "edges": [
+    {
+      "id": "bid-to-permit",
+      "from": "bidding_kickoff",
+      "to": "permit_approval",
+      "variant": "default"
+    },
+    {
+      "id": "permit-to-site",
+      "from": "permit_approval",
+      "to": "site_takeover",
+      "variant": "default"
+    },
+    {
+      "id": "site-to-demo",
+      "from": "site_takeover",
+      "to": "demolition_clearing",
+      "variant": "emphasis"
+    },
+    {
+      "id": "demo-to-mep",
+      "from": "demolition_clearing",
+      "to": "mep_roughin",
+      "variant": "emphasis"
+    },
+    {
+      "id": "mep-to-inspect",
+      "from": "mep_roughin",
+      "to": "concealed_inspection",
+      "variant": "security"
+    },
+    {
+      "id": "inspect-to-drywall",
+      "from": "concealed_inspection",
+      "to": "drywall_finishes",
+      "variant": "emphasis",
+      "label": "放行"
+    },
+    {
+      "id": "drywall-to-paint",
+      "from": "drywall_finishes",
+      "to": "painting_ceiling",
+      "variant": "emphasis"
+    },
+    {
+      "id": "paint-to-iaq1",
+      "from": "painting_ceiling",
+      "to": "iaq_initial_cure",
+      "variant": "security",
+      "label": "完工"
+    },
+    {
+      "id": "iaq1-to-furniture",
+      "from": "iaq_initial_cure",
+      "to": "furniture_iaq",
+      "variant": "default",
+      "label": "达标"
+    },
+    {
+      "id": "furniture-to-handover",
+      "from": "furniture_iaq",
+      "to": "project_handover",
+      "variant": "emphasis",
+      "role": "return",
+      "fromSide": "right",
+      "toSide": "right",
+      "route": "outside-right",
+      "width": 1.2
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "工程工序严谨逻辑",
+      "items": [
+        "隐蔽工程（打压试验、管道阻燃、桥架跨接）未完工严禁封板",
+        "双日历机制：业主报审遵循5天工作日，现场施工遵循7×8连续工期",
+        "单分区工种交叉作业执行空间容量与干扰矩阵约束"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "室内空气质量(IAQ)双重保障",
+      "items": [
+        "第1次IAQ：硬装油漆地胶完工后立即介入，源头降解TVOC与甲醛",
+        "第2次IAQ：软装与活动家具进场后二次散味，取得CMA权威合格报告后方可交付客户使用"
+      ]
+    }
+  ]
+}

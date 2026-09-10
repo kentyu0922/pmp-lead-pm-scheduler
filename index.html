@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PMP 商业工装主进度智能推演数字驾驶舱</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50: '#ecfeff', 100: '#cffafe', 400: '#22d3ee', 500: '#06b6d4', 600: '#0891b2', 700: '#0e7490' },
+            darkbg: '#090D16',
+            cardbg: '#111827'
+          },
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'sans-serif'],
+            mono: ['JetBrains Mono', 'Fira Code', 'Consolas', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #090D16; }
+    ::-webkit-scrollbar-thumb { background: #1F2937; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #374151; }
+    .glass-card {
+      background: rgba(17, 24, 39, 0.8);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .gantt-grid {
+      background-size: 28px 100%;
+      background-image: linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    }
+    .critical-bar {
+      box-shadow: 0 0 12px rgba(244, 63, 94, 0.5);
+    }
+  </style>
+</head>
+<body class="bg-[#090D16] text-slate-200 min-h-screen flex flex-col font-sans selection:bg-cyan-500/30 selection:text-cyan-200">
+
+  <!-- 顶部导航栏 -->
+  <header class="sticky top-0 z-50 bg-[#090D16]/95 backdrop-blur-md border-b border-white/10 px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center space-x-3">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
+      </div>
+      <div>
+        <div class="flex items-center space-x-2">
+          <h1 class="font-bold text-lg text-white tracking-tight">PMP 商业工装主进度推演数字驾驶舱</h1>
+          <span class="text-xs font-mono px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">v6.4 Production Candidate</span>
+        </div>
+        <p class="text-xs text-slate-400">基于 36 项物理工序、双日历机制与严格资源拥挤惩罚的确定性工程排期引擎</p>
+      </div>
+    </div>
+
+    <!-- 顶部主视图切换 Tab -->
+    <div class="flex items-center bg-slate-900/80 p-1 rounded-xl border border-white/10 space-x-1">
+      <button id="tab-btn-cockpit" onclick="switchMainTab('cockpit')" class="px-4 py-1.5 rounded-lg text-xs font-medium flex items-center space-x-1.5 transition-all bg-cyan-500 text-white shadow-md shadow-cyan-500/30">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+        <span>推演工作台</span>
+      </button>
+      <button id="tab-btn-arch" onclick="switchMainTab('arch')" class="px-4 py-1.5 rounded-lg text-xs font-medium flex items-center space-x-1.5 transition-all text-slate-400 hover:text-white hover:bg-white/5">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+        <span>系统架构图 (Archify)</span>
+      </button>
+      <button id="tab-btn-workflow" onclick="switchMainTab('workflow')" class="px-4 py-1.5 rounded-lg text-xs font-medium flex items-center space-x-1.5 transition-all text-slate-400 hover:text-white hover:bg-white/5">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
+        <span>施工工序流 (Workflow)</span>
+      </button>
+    </div>
+
+    <!-- 状态指示与快捷操作 -->
+    <div class="flex items-center space-x-3">
+      <div class="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span>10/10 门禁合规</span>
+      </div>
+      <button onclick="exportScheduleJSON()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-white/10 text-xs flex items-center space-x-1.5 transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+        <span>导出推演数据</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- 主内容容器 -->
+  <main class="flex-1 flex overflow-hidden relative">
+
+    <!-- 视图 1: 驾驶舱主界面 -->
+    <div id="view-cockpit" class="flex-1 flex overflow-hidden">
+      
+      <!-- 左侧: 交互式推演参数控制面板 -->
+      <aside class="w-80 md:w-96 bg-slate-900/60 border-r border-white/10 flex flex-col overflow-y-auto p-5 space-y-6 shrink-0">
+        
+        <div class="flex items-center justify-between pb-3 border-b border-white/10">
+          <span class="font-semibold text-sm text-white flex items-center space-x-2">
+            <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+            <span>工程锚点与参数控制</span>
+          </span>
+          <button onclick="resetDefaultParams()" class="text-xs text-slate-400 hover:text-cyan-400 transition-colors">重置默认</button>
+        </div>
+
+        <!-- 锚点 1: 城市与法定审批规则 -->
+        <div class="space-y-2">
+          <label class="text-xs font-medium text-slate-300 flex justify-between">
+            <span>项目所在城市 (City Rules)</span>
+            <span id="permit-rule-badge" class="text-[10px] text-emerald-400 font-mono bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">100万/300㎡免施工许可</span>
+          </label>
+          <select id="input-city" onchange="triggerRecalculate()" class="w-full bg-slate-800/90 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500">
+            <option value="shanghai" selected>上海市 (浦东/黄浦/静安)</option>
+            <option value="beijing">北京市 (朝阳/海淀)</option>
+            <option value="shenzhen">深圳市 (南山/福田)</option>
+            <option value="guangzhou">广州市 (天河/海珠)</option>
+            <option value="hangzhou">杭州市 (滨江/西湖)</option>
+            <option value="suzhou">苏州市 (园区/姑苏)</option>
+            <option value="chengdu">成都市 (高新/锦江)</option>
+            <option value="wuhan">武汉市 (光谷/武昌)</option>
+          </select>
+        </div>
+
+        <!-- 锚点 2: 建筑面积 -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-slate-300 font-medium">办公建筑面积 (Area)</span>
+            <span class="font-mono text-cyan-400 font-bold"><span id="display-area">1500</span> ㎡</span>
+          </div>
+          <input type="range" id="input-area" min="300" max="8000" step="100" value="1500" oninput="updateAreaDisplay(this.value); triggerRecalculate();" class="w-full accent-cyan-500 cursor-pointer">
+          <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+            <span>300 ㎡</span>
+            <span>2500 ㎡</span>
+            <span>5000 ㎡</span>
+            <span>8000 ㎡</span>
+          </div>
+        </div>
+
+        <!-- 锚点 3: 装修预算造价 -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-slate-300 font-medium">工程总投资造价 (Cost)</span>
+            <span class="font-mono text-cyan-400 font-bold"><span id="display-cost">320</span> 万元</span>
+          </div>
+          <input type="range" id="input-cost" min="50" max="2000" step="10" value="320" oninput="updateCostDisplay(this.value); triggerRecalculate();" class="w-full accent-cyan-500 cursor-pointer">
+          <div class="flex justify-between text-[10px] text-slate-400">
+            <span>预估平米单价: <span id="display-unit-cost" class="text-white font-mono font-semibold">2133</span> 元/㎡</span>
+            <span id="cost-permit-indicator" class="text-emerald-400">非免审申报</span>
+          </div>
+        </div>
+
+        <!-- 锚点 4: 发包模式与招标 -->
+        <div class="grid grid-cols-2 gap-3">
+          <div class="space-y-1.5">
+            <label class="text-xs text-slate-300 font-medium">发包交付模式</label>
+            <select id="input-delivery" onchange="triggerRecalculate()" class="w-full bg-slate-800 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500">
+              <option value="DB">DB (设计施工一体化)</option>
+              <option value="DBB" selected>DBB (传统平行发包)</option>
+            </select>
+          </div>
+          <div class="space-y-1.5">
+            <label class="text-xs text-slate-300 font-medium">招标方式</label>
+            <select id="input-bidding" onchange="triggerRecalculate()" class="w-full bg-slate-800 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500">
+              <option value="invite" selected>邀请招标 (Invite)</option>
+              <option value="public">公开招标 (Public)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 锚点 5: 工期推演方向与基准日期 -->
+        <div class="space-y-3 p-3.5 rounded-xl bg-slate-800/40 border border-white/5">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium text-slate-300">推演方向</span>
+            <div class="flex items-center space-x-1 text-xs">
+              <label class="cursor-pointer flex items-center space-x-1">
+                <input type="radio" name="anchor-dir" value="forward" checked onchange="triggerRecalculate()" class="accent-cyan-500">
+                <span class="text-slate-300 text-xs">顺推开工</span>
+              </label>
+              <label class="cursor-pointer flex items-center space-x-1 ml-2">
+                <input type="radio" name="anchor-dir" value="backward" onchange="triggerRecalculate()" class="accent-cyan-500">
+                <span class="text-slate-300 text-xs">倒排完工</span>
+              </label>
+            </div>
+          </div>
+          <div class="space-y-1">
+            <label id="label-date-anchor" class="text-[11px] text-slate-400">拟定开工日期 (Start Date)</label>
+            <input type="date" id="input-anchor-date" value="2026-10-08" onchange="triggerRecalculate()" class="w-full bg-slate-800 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-cyan-500">
+          </div>
+        </div>
+
+        <!-- 施工与资源核心控制 -->
+        <div class="space-y-3 pt-2 border-t border-white/10">
+          <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider">施工现场与资源参数</span>
+          
+          <div class="grid grid-cols-2 gap-2.5">
+            <div class="space-y-1">
+              <label class="text-[11px] text-slate-400">原始场地状况</label>
+              <select id="input-site-condition" onchange="triggerRecalculate()" class="w-full bg-slate-800 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none">
+                <option value="full_strip" selected>旧房全拆 (Full Strip)</option>
+                <option value="shell">毛坯交付 (Shell, 0拆除)</option>
+                <option value="partial">部分利旧拆除 (Partial)</option>
+              </select>
+            </div>
+            <div class="space-y-1">
+              <label class="text-[11px] text-slate-400">办公布局类型</label>
+              <select id="input-layout" onchange="triggerRecalculate()" class="w-full bg-slate-800 border border-white/10 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none">
+                <option value="standard" selected>标准综合办公 (50%隔)</option>
+                <option value="open_plan">开敞大通透 (80%敞)</option>
+                <option value="cellular">密集蜂窝多独立间</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 班次与拥挤度模型 -->
+          <div class="space-y-2.5 pt-1">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-slate-300">工作面班次模式</span>
+              <div class="flex items-center space-x-2 text-xs">
+                <label class="cursor-pointer flex items-center space-x-1">
+                  <input type="radio" name="shift-mode" value="1" checked onchange="triggerRecalculate()" class="accent-cyan-500">
+                  <span>1班制(8h)</span>
+                </label>
+                <label class="cursor-pointer flex items-center space-x-1">
+                  <input type="radio" name="shift-mode" value="2" onchange="triggerRecalculate()" class="accent-cyan-500">
+                  <span class="text-amber-400">双班制(1.75×)</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/50 border border-white/5">
+              <div>
+                <div class="text-xs text-slate-200 font-medium">非线性劳动力拥挤惩罚</div>
+                <div class="text-[10px] text-slate-400">超过工作面承载上限自动折减效率</div>
+              </div>
+              <input type="checkbox" id="input-congestion" checked onchange="triggerRecalculate()" class="w-4 h-4 accent-cyan-500 rounded cursor-pointer">
+            </div>
+          </div>
+        </div>
+
+      </aside>
+
+      <!-- 中间与右侧: 推演看板主展示区 -->
+      <section class="flex-1 flex flex-col overflow-y-auto p-6 space-y-6">
+        
+        <!-- 核心 KPI 状态卡片栏 -->
+        <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3.5">
+          
+          <div class="glass-card p-4 rounded-xl relative overflow-hidden">
+            <div class="text-xs text-slate-400 flex items-center justify-between">
+              <span>总日历工期</span>
+              <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+            </div>
+            <div class="mt-2 flex items-baseline space-x-1">
+              <span id="kpi-calendar-days" class="text-2xl font-bold font-mono text-white tracking-tight">108</span>
+              <span class="text-xs text-slate-400">日历天</span>
+            </div>
+            <div class="mt-1 text-[10px] text-cyan-400/90 font-mono flex items-center space-x-1">
+              <span id="kpi-date-range">2026.10.08 → 2027.01.23</span>
+            </div>
+          </div>
+
+          <div class="glass-card p-4 rounded-xl relative overflow-hidden">
+            <div class="text-xs text-slate-400 flex items-center justify-between">
+              <span>现场施工工期</span>
+              <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+            </div>
+            <div class="mt-2 flex items-baseline space-x-1">
+              <span id="kpi-site-days" class="text-2xl font-bold font-mono text-white tracking-tight">72</span>
+              <span class="text-xs text-slate-400">施工天 (7×8)</span>
+            </div>
+            <div class="mt-1 text-[10px] text-slate-400">剔除行政审批前置期</div>
+          </div>
+
+          <div class="glass-card p-4 rounded-xl relative overflow-hidden">
+            <div class="text-xs text-slate-400 flex items-center justify-between">
+              <span>总工日投入</span>
+              <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            </div>
+            <div class="mt-2 flex items-baseline space-x-1">
+              <span id="kpi-workerdays" class="text-2xl font-bold font-mono text-white tracking-tight">1,420</span>
+              <span class="text-xs text-slate-400">工日 (人天)</span>
+            </div>
+            <div class="mt-1 text-[10px] text-emerald-400 font-mono">约 11,360 标工时</div>
+          </div>
+
+          <div class="glass-card p-4 rounded-xl relative overflow-hidden">
+            <div class="text-xs text-slate-400 flex items-center justify-between">
+              <span>现场高峰人力</span>
+              <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+            </div>
+            <div class="mt-2 flex items-baseline space-x-1">
+              <span id="kpi-peak-workers" class="text-2xl font-bold font-mono text-white tracking-tight">38</span>
+              <span class="text-xs text-slate-400">人 / 峰值</span>
+            </div>
+            <div class="mt-1 text-[10px] text-amber-400">平均在场: <span id="kpi-avg-workers" class="font-mono">20</span> 人</div>
+          </div>
+
+          <div class="glass-card p-4 rounded-xl relative overflow-hidden">
+            <div class="text-xs text-slate-400 flex items-center justify-between">
+              <span>关键路径工序</span>
+              <span class="w-2 h-2 rounded-full bg-rose-400"></span>
+            </div>
+            <div class="mt-2 flex items-baseline space-x-1">
+              <span id="kpi-critical-tasks" class="text-2xl font-bold font-mono text-rose-400 tracking-tight">11</span>
+              <span class="text-xs text-slate-400">/ 36 工序</span>
+            </div>
+            <div class="mt-1 text-[10px] text-rose-400 font-mono">时差 TF = 0 刚性约束</div>
+          </div>
+
+          <div class="glass-card p-4 rounded-xl relative overflow-hidden">
+            <div class="text-xs text-slate-400 flex items-center justify-between">
+              <span>合规审计门禁</span>
+              <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            </div>
+            <div class="mt-2 flex items-baseline space-x-1">
+              <span class="text-2xl font-bold font-mono text-emerald-400 tracking-tight">100%</span>
+              <span class="text-xs text-slate-400">10/10 通过</span>
+            </div>
+            <div class="mt-1 text-[10px] text-emerald-400">双重IAQ + 免办折叠闭环</div>
+          </div>
+
+        </div>
+
+        <!-- 驾驶舱内多标签切换面板 (甘特图 / 方案比选 / 关键路径时差 / 劳动力负荷) -->
+        <div class="glass-card rounded-2xl p-5 space-y-4">
+          
+          <div class="flex items-center justify-between border-b border-white/10 pb-3">
+            <div class="flex items-center space-x-2">
+              <button id="subtab-btn-gantt" onclick="switchSubTab('gantt')" class="px-3 py-1 rounded-lg text-xs font-medium bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                📊 动态甘特图 (Gantt Schedule)
+              </button>
+              <button id="subtab-btn-scenarios" onclick="switchSubTab('scenarios')" class="px-3 py-1 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5">
+                ⚖️ 三大方案帕累托比选
+              </button>
+              <button id="subtab-btn-floats" onclick="switchSubTab('floats')" class="px-3 py-1 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5">
+                ⚡ 关键路径与时差拓扑
+              </button>
+            </div>
+            <div class="flex items-center space-x-3 text-xs text-slate-400">
+              <div class="flex items-center space-x-1.5">
+                <span class="w-3 h-3 rounded bg-rose-500/80 inline-block"></span>
+                <span>关键路径 (Critical)</span>
+              </div>
+              <div class="flex items-center space-x-1.5">
+                <span class="w-3 h-3 rounded bg-cyan-500/60 inline-block"></span>
+                <span>普通工序 (Non-critical)</span>
+              </div>
+              <div class="flex items-center space-x-1.5">
+                <span class="w-2.5 h-2.5 rotate-45 bg-amber-400 inline-block"></span>
+                <span>合规里程碑 (Gate)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 子面板 1: 动态甘特图视图 -->
+          <div id="subpanel-gantt" class="space-y-4">
+            <div class="overflow-x-auto overflow-y-auto max-h-[460px] border border-white/5 rounded-xl bg-slate-950/70 p-3">
+              <!-- 时间刻度轴 -->
+              <div id="gantt-header" class="flex items-center border-b border-white/10 pb-2 mb-2 text-[11px] font-mono text-slate-400 sticky top-0 bg-slate-950/90 z-20">
+                <div class="w-64 shrink-0 font-sans font-medium text-slate-300">工序名称 (WBS Family)</div>
+                <div class="w-20 shrink-0 text-center">工期(天)</div>
+                <div class="w-20 shrink-0 text-center">工日(人天)</div>
+                <div class="w-20 shrink-0 text-center">前置关系</div>
+                <div class="flex-1 flex" id="gantt-timeline-scales"></div>
+              </div>
+
+              <!-- 任务行容器 -->
+              <div id="gantt-rows" class="space-y-1.5 text-xs font-mono relative"></div>
+            </div>
+          </div>
+
+          <!-- 子面板 2: 三套方案比选 -->
+          <div id="subpanel-scenarios" class="hidden space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+              
+              <div class="p-4 rounded-xl bg-slate-800/40 border border-cyan-500/30 relative">
+                <div class="flex justify-between items-center mb-2">
+                  <span class="font-bold text-sm text-cyan-400">方案 A: 基准平衡方案</span>
+                  <span class="text-[10px] px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-300 font-mono">标准基线</span>
+                </div>
+                <p class="text-xs text-slate-400 mb-4">标准单班制作业，合理劳动力配置，质量与成本受控最优，无拥挤降效。</p>
+                <div class="space-y-2 text-xs font-mono">
+                  <div class="flex justify-between py-1 border-b border-white/5">
+                    <span class="text-slate-400">总日历工期</span>
+                    <span id="scen-a-calendar" class="text-white font-bold">108 天</span>
+                  </div>
+                  <div class="flex justify-between py-1 border-b border-white/5">
+                    <span class="text-slate-400">总工日投入</span>
+                    <span id="scen-a-workerdays" class="text-slate-200">1,420 人天</span>
+                  </div>
+                  <div class="flex justify-between py-1 border-b border-white/5">
+                    <span class="text-slate-400">高峰在场人数</span>
+                    <span id="scen-a-peak" class="text-slate-200">38 人</span>
+                  </div>
+                  <div class="flex justify-between py-1">
+                    <span class="text-slate-400">效率与拥挤折减</span>
+                    <span class="text-emerald-400">0% (最优效率)</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="p-4 rounded-xl bg-slate-800/40 border border-amber-500/30 relative">
+                <div class="flex justify-between items-center mb-2">
+                  <span class="font-bold text-sm text-amber-400">方案 B: 抢工极速方案</span>
+                  <span class="text-[10px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 font-mono">工期最短</span>
+                </div>
+                <p class="text-xs text-slate-400 mb-4">双班倒作业 + 饱和人员投入，触及工序物理极限，伴随 15% 拥挤损耗与加班津贴。</p>
+                <div class="space-y-2 text-xs font-mono">
+                  <div class="flex justify-between py-1 border-b border-white/5">
+                    <span class="text-slate-400">总日历工期</span>
+                    <span id="scen-b-calendar" class="text-amber-400 font-bold">82 天 (-24%)</span>
+                  </div>
+                  <div class="flex justify-between py-1 border-b border-white/5">
+                    <span class="text-slate-400">总工日投入</span>
+                    <span id="scen-b-workerdays" class="text-slate-200">1,630 人天</span>
+                  </div>
+                  <div class="flex justify-between py-1 border-b border-white/5">
+                    <span class="text-slate-400">高峰在场人数</span>
+                    <span id="scen-b-peak" class="text-amber-400">56 人</span>
+                  </div>
+                  <div class="flex justify-between py-1">
+                    <span class="text-slate-400">效率与拥挤折减</span>
+                    <span class="text-amber-400">-14.8% 降效</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="p-4 rounded-xl bg-slate-800/40 border border-blue-500/30 relative">
+                <div class="flex justify-between items-center mb-2">
+                  <span class="font-bold text-sm text-blue-400">方案 C: 经济平准方案</span>
+                  <span class="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-300 font-mono">成本最低</span>
+                </div>
+                <p class="text-xs text-slate-400 mb-4">精简班组规模，工种按作业面平滑流水施工，人力峰谷平稳，人工综合成本最低。</p>
+                <div class="space-y-2 text-xs font-mono">
+                  <div class="flex justify-between py-1 border-b border-white/5">
+                    <span class="text-slate-400">总日历工期</span>
+                    <span id="scen-c-calendar" class="text-slate-200 font-bold">126 天 (+16%)</span>
+                  </div>
+                  <div class="flex justify-between py-1 border-b border-white/5">
+                    <span class="text-slate-400">总工日投入</span>
+                    <span id="scen-c-workerdays" class="text-emerald-400">1,380 人天 (-3%)</span>
+                  </div>
+                  <div class="flex justify-between py-1 border-b border-white/5">
+                    <span class="text-slate-400">高峰在场人数</span>
+                    <span id="scen-c-peak" class="text-emerald-400">24 人 (最平准)</span>
+                  </div>
+                  <div class="flex justify-between py-1">
+                    <span class="text-slate-400">效率与拥挤折减</span>
+                    <span class="text-emerald-400">+2.8% 精细作业</span>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- 子面板 3: 关键路径与时差拓扑 -->
+          <div id="subpanel-floats" class="hidden space-y-3">
+            <div class="flex items-center justify-between text-xs text-slate-400">
+              <span>关键链工序列表 (Total Float = 0 代表总时差为零的绝对刚性工序，任何拖延直接推迟交付日)</span>
+              <span class="text-rose-400 font-mono font-bold">重点管控工序</span>
+            </div>
+            <div id="critical-tasks-list" class="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-[360px] overflow-y-auto pr-1"></div>
+          </div>
+
+        </div>
+
+        <!-- 底部: 每日劳动力负荷折线图与 10 项合规门禁审计 -->
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          
+          <!-- 劳动力资源负荷曲线 -->
+          <div class="xl:col-span-2 glass-card p-5 rounded-2xl space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center space-x-2">
+                <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path></svg>
+                <span class="font-semibold text-sm text-white">每日现场劳动力负荷曲线 (Daily Manpower Loading)</span>
+              </div>
+              <span class="text-xs text-slate-400 font-mono">警戒容量线: <span id="chart-capacity-limit" class="text-amber-400 font-bold">45</span> 人</span>
+            </div>
+            
+            <div class="h-44 relative flex items-end" id="manpower-chart-container">
+              <canvas id="manpower-canvas" class="w-full h-full"></canvas>
+            </div>
+            
+            <div class="flex justify-between items-center text-[11px] text-slate-400 pt-1 border-t border-white/5 font-mono">
+              <span>项目开工 (Day 1)</span>
+              <span>隐蔽施工高峰 (Day 25~45)</span>
+              <span>油漆与安装 (Day 55~75)</span>
+              <span>竣工交付 (Day <span id="chart-total-days">108</span>)</span>
+            </div>
+          </div>
+
+          <!-- 10 项严苛工程合规门禁状态监控 -->
+          <div class="glass-card p-5 rounded-2xl space-y-3.5">
+            <div class="flex items-center justify-between pb-2 border-b border-white/10">
+              <span class="font-semibold text-sm text-white flex items-center space-x-1.5">
+                <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                <span>10 项严苛合规门禁审计</span>
+              </span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 font-mono">全面合规</span>
+            </div>
+
+            <div class="space-y-2 text-xs overflow-y-auto max-h-[170px] pr-1" id="compliance-checklist">
+              <div class="flex items-center justify-between p-1.5 rounded bg-white/5">
+                <span class="text-slate-300">1. 四项工程锚点闭环</span>
+                <span class="text-emerald-400 font-mono">✓ PASS</span>
+              </div>
+              <div class="flex items-center justify-between p-1.5 rounded bg-white/5">
+                <span class="text-slate-300">2. 施工许可与免办折叠 (Gate 4)</span>
+                <span id="gate-permit-status" class="text-emerald-400 font-mono">✓ EXEMPT FOLD</span>
+              </div>
+              <div class="flex items-center justify-between p-1.5 rounded bg-white/5">
+                <span class="text-slate-300">3. 隐蔽工程 FS 放行门禁</span>
+                <span class="text-emerald-400 font-mono">✓ FS LOCKED</span>
+              </div>
+              <div class="flex items-center justify-between p-1.5 rounded bg-white/5">
+                <span class="text-slate-300">4. 双重 IAQ 室内空气治理链</span>
+                <span class="text-emerald-400 font-mono">✓ DUAL IAQ PASS</span>
+              </div>
+              <div class="flex items-center justify-between p-1.5 rounded bg-white/5">
+                <span class="text-slate-300">5. 关键路径非空断言</span>
+                <span class="text-emerald-400 font-mono">✓ CP VERIFIED</span>
+              </div>
+              <div class="flex items-center justify-between p-1.5 rounded bg-white/5">
+                <span class="text-slate-300">6. 双日历机制有效解耦 (5d/7x8)</span>
+                <span class="text-emerald-400 font-mono">✓ DUAL CAL</span>
+              </div>
+              <div class="flex items-center justify-between p-1.5 rounded bg-white/5">
+                <span class="text-slate-300">7. 工作面容量与拥挤封顶</span>
+                <span class="text-emerald-400 font-mono">✓ UNDER CAP</span>
+              </div>
+              <div class="flex items-center justify-between p-1.5 rounded bg-white/5">
+                <span class="text-slate-300">8. 工种交叉干扰矩阵约束</span>
+                <span class="text-emerald-400 font-mono">✓ ZERO CONFLICT</span>
+              </div>
+              <div class="flex items-center justify-between p-1.5 rounded bg-white/5">
+                <span class="text-slate-300">9. 整数物理工日约束</span>
+                <span class="text-emerald-400 font-mono">✓ INTEGER CEIL</span>
+              </div>
+              <div class="flex items-center justify-between p-1.5 rounded bg-white/5">
+                <span class="text-slate-300">10. 基准不可变原则硬保护</span>
+                <span class="text-emerald-400 font-mono">✓ BASELINE SAFE</span>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+    </div>
+
+    <!-- 视图 2: 系统架构图 (Iframe 无缝内嵌) -->
+    <div id="view-arch" class="hidden flex-1 w-full h-full relative">
+      <iframe src="pmp-lead-pm-scheduler-architecture.html" class="w-full h-full border-none" title="系统架构图"></iframe>
+    </div>
+
+    <!-- 视图 3: 施工工序流 (Iframe 无缝内嵌) -->
+    <div id="view-workflow" class="hidden flex-1 w-full h-full relative">
+      <iframe src="pmp-lead-pm-scheduler-workflow.html" class="w-full h-full border-none" title="施工工序流"></iframe>
+    </div>
+
+  </main>
+
+  <!-- 核心推演计算 JavaScript -->
+  <script>
+    // 城市法定免办红线数据库
+    const CITY_RULES = {
+      shanghai: { name: '上海', costLimit: 100, areaLimit: 300, desc: '100万/300㎡以下免办施工许可' },
+      beijing:  { name: '北京', costLimit: 100, areaLimit: 300, desc: '100万/300㎡以下免办施工许可' },
+      shenzhen: { name: '深圳', costLimit: 100, areaLimit: 300, desc: '100万/300㎡以下免办施工许可' },
+      guangzhou:{ name: '广州', costLimit: 100, areaLimit: 300, desc: '100万/300㎡以下免办施工许可' },
+      hangzhou: { name: '杭州', costLimit: 100, areaLimit: 300, desc: '100万/300㎡以下免办施工许可' },
+      suzhou:   { name: '苏州', costLimit: 100, areaLimit: 500, desc: '100万/500㎡以下免办施工许可' },
+      chengdu:  { name: '成都', costLimit: 100, areaLimit: 300, desc: '100万/300㎡以下免办施工许可' },
+      wuhan:    { name: '武汉', costLimit: 100, areaLimit: 300, desc: '100万/300㎡以下免办施工许可' }
+    };
+
+    // 核心 36 项标准化工程工序模板与定额
+    const TASK_CATALOG = [
+      // 阶段 1: 商务与行政报审
+      { id: 'bidding', phase: '商务报审', name: '招标发包与合同立项', baseDays: 14, isPhysical: false, trade: '商务', cal: '5d' },
+      { id: 'design_review', phase: '商务报审', name: '深化图纸确认与图审', baseDays: 7, isPhysical: false, trade: '设计', cal: '5d' },
+      { id: 'prop_review', phase: '商务报审', name: '物业装修申报与押金', baseDays: 5, isPhysical: false, trade: '物业', cal: '5d' },
+      { id: 'permit_proc', phase: '商务报审', name: '政府施工许可证办理', baseDays: 10, isPhysical: false, trade: '报审', cal: '5d', canFold: true },
+      
+      // 阶段 2: 拆除与场地准备
+      { id: 'site_takeover', phase: '拆除准备', name: '现场交接与临时水电', baseDays: 3, isPhysical: true, trade: '综合', cal: '7d' },
+      { id: 'demolition', phase: '拆除准备', name: '旧隔墙吊顶室内拆除', baseDays: 6, isPhysical: true, trade: '拆除工', cal: '7d', qRate: 250 },
+      { id: 'waste_removal', phase: '拆除准备', name: '建筑渣土清理与外运', baseDays: 4, isPhysical: true, trade: '力工', cal: '7d', qRate: 350 },
+      { id: 'survey_marking', phase: '拆除准备', name: '室内放线与综合标高定位', baseDays: 3, isPhysical: true, trade: '测量工', cal: '7d' },
+
+      // 阶段 3: 机电安装与隐蔽工程
+      { id: 'elec_roughin', phase: '机电隐蔽', name: '强电桥架与穿线镀锌管', baseDays: 8, isPhysical: true, trade: '电工', cal: '7d', qRate: 180 },
+      { id: 'hvac_ducts', phase: '机电隐蔽', name: '空调风管与新风设备安装', baseDays: 9, isPhysical: true, trade: '暖通工', cal: '7d', qRate: 160 },
+      { id: 'fire_pipe', phase: '机电隐蔽', name: '消防喷淋管道改位及支架', baseDays: 7, isPhysical: true, trade: '消防工', cal: '7d', qRate: 200 },
+      { id: 'plumbing_test', phase: '机电隐蔽', name: '给排水管与管道打压试漏', baseDays: 4, isPhysical: true, trade: '管道工', cal: '7d', qRate: 300 },
+      { id: 'elv_cabling', phase: '机电隐蔽', name: '弱电智能化穿线与线槽', baseDays: 6, isPhysical: true, trade: '弱电工', cal: '7d', qRate: 220 },
+      { id: 'concealed_gate', phase: '机电隐蔽', name: '隐蔽工程联合验收门禁', baseDays: 1, isPhysical: false, trade: '监理', cal: '7d', isGate: true },
+
+      // 阶段 4: 隔墙封板与泥水工程
+      { id: 'drywall_frame', phase: '隔墙泥瓦', name: '轻钢龙骨隔墙与单面封板', baseDays: 9, isPhysical: true, trade: '木工', cal: '7d', qRate: 150 },
+      { id: 'pipe_insulation', phase: '隔墙泥瓦', name: '水管保温与阻火圈施工', baseDays: 3, isPhysical: true, trade: '绝热工', cal: '7d', qRate: 400 },
+      { id: 'drywall_close', phase: '隔墙泥瓦', name: '隔音棉填充与双面封石膏板', baseDays: 7, isPhysical: true, trade: '木工', cal: '7d', qRate: 180 },
+      { id: 'waterproofing', phase: '隔墙泥瓦', name: '茶水间卫生间防水及闭水试验', baseDays: 4, isPhysical: true, trade: '防水工', cal: '7d', qRate: 120 },
+      { id: 'tiling_floor', phase: '隔墙泥瓦', name: '地砖墙面砖铺贴及养护', baseDays: 7, isPhysical: true, trade: '泥瓦工', cal: '7d', qRate: 100 },
+      { id: 'ceiling_board', phase: '隔墙泥瓦', name: '轻钢龙骨吊顶龙骨封板', baseDays: 8, isPhysical: true, trade: '木工', cal: '7d', qRate: 160 },
+
+      // 阶段 5: 精装油漆饰面工程
+      { id: 'plaster_putty', phase: '油漆精装', name: '墙顶面嵌缝及批嵌满刮腻子', baseDays: 9, isPhysical: true, trade: '油漆工', cal: '7d', qRate: 140 },
+      { id: 'sanding_check', phase: '油漆精装', name: '腻子平整度打磨与修补', baseDays: 5, isPhysical: true, trade: '油漆工', cal: '7d', qRate: 260 },
+      { id: 'primer_painting', phase: '油漆精装', name: '底漆及第一遍乳胶漆喷涂', baseDays: 5, isPhysical: true, trade: '油漆工', cal: '7d', qRate: 280 },
+      { id: 'raised_floor', phase: '油漆精装', name: '网络活动架空地板安装', baseDays: 6, isPhysical: true, trade: '地坪工', cal: '7d', qRate: 220 },
+      { id: 'carpet_laying', phase: '油漆精装', name: '方块办公地毯满铺及踢脚线', baseDays: 5, isPhysical: true, trade: '地毯工', cal: '7d', qRate: 260 },
+      { id: 'glass_doors', phase: '油漆精装', name: '双玻百叶隔断与木门门锁', baseDays: 6, isPhysical: true, trade: '门窗工', cal: '7d', qRate: 180 },
+      { id: 'fixtures_install', phase: '油漆精装', name: '开关面板插座与照明灯具安装', baseDays: 6, isPhysical: true, trade: '电工', cal: '7d', qRate: 220 },
+      { id: 'top_painting', phase: '油漆精装', name: '面漆二次修补与喷涂交工', baseDays: 4, isPhysical: true, trade: '油漆工', cal: '7d', qRate: 320 },
+
+      // 阶段 6: 双重IAQ治理与竣工移交
+      { id: 'rough_clean', phase: '治理交付', name: '场地基础清理与粗保洁', baseDays: 2, isPhysical: true, trade: '保洁', cal: '7d' },
+      { id: 'iaq_phase1', phase: '治理交付', name: '首次室内空气净化治理(IAQ-1)', baseDays: 3, isPhysical: true, trade: '环保治理', cal: '7d', isGate: true },
+      { id: 'furniture_in', phase: '治理交付', name: '办公桌椅活动家具拼装就位', baseDays: 6, isPhysical: true, trade: '家具工', cal: '7d', qRate: 220 },
+      { id: 'mep_test_run', phase: '治理交付', name: '空调新风带电连续联动试运转', baseDays: 3, isPhysical: false, trade: '调试', cal: '7d' },
+      { id: 'deep_cleaning', phase: '治理交付', name: '全场精细深度保洁与地毯吸尘', baseDays: 2, isPhysical: true, trade: '保洁', cal: '7d' },
+      { id: 'iaq_phase2', phase: '治理交付', name: '持续通风散味与CMA复测(IAQ-2)', baseDays: 5, isPhysical: true, trade: 'CMA检测', cal: '7d', isGate: true },
+      { id: 'fire_check', phase: '治理交付', name: '消防第三方检测与合规验收', baseDays: 4, isPhysical: false, trade: '消防局', cal: '5d' },
+      { id: 'final_handover', phase: '治理交付', name: '工程正式竣工验收与钥匙移交', baseDays: 1, isPhysical: false, trade: '各方联合', cal: '7d', isGate: true }
+    ];
+
+    let currentSchedule = [];
+    let currentKPIs = {};
+
+    function updateAreaDisplay(val) {
+      document.getElementById('display-area').innerText = val;
+      const cost = Math.round((val * 2133) / 10000);
+      document.getElementById('input-cost').value = cost;
+      document.getElementById('display-cost').innerText = cost;
+      document.getElementById('display-unit-cost').innerText = Math.round((cost * 10000) / val);
+    }
+
+    function updateCostDisplay(val) {
+      document.getElementById('display-cost').innerText = val;
+      const area = parseInt(document.getElementById('input-area').value);
+      document.getElementById('display-unit-cost').innerText = Math.round((val * 10000) / area);
+    }
+
+    // 核心推演计算算法 (Deterministic Simulation Engine)
+    function runDeterministicSimulation() {
+      const cityKey = document.getElementById('input-city').value;
+      const city = CITY_RULES[cityKey] || CITY_RULES.shanghai;
+      const area = parseInt(document.getElementById('input-area').value);
+      const cost = parseInt(document.getElementById('input-cost').value);
+      const delivery = document.getElementById('input-delivery').value;
+      const bidding = document.getElementById('input-bidding').value;
+      const siteCond = document.getElementById('input-site-condition').value;
+      const layout = document.getElementById('input-layout').value;
+      const shiftMode = parseInt(document.querySelector('input[name="shift-mode"]:checked').value);
+      const useCongestion = document.getElementById('input-congestion').checked;
+      const anchorDir = document.querySelector('input[name="anchor-dir"]:checked').value;
+      const anchorDateStr = document.getElementById('input-anchor-date').value;
+
+      // 1. 判断免办与报审折叠
+      const isExempt = (cost <= city.costLimit || area <= city.areaLimit);
+      document.getElementById('permit-rule-badge').innerText = city.desc;
+      if (isExempt) {
+        document.getElementById('cost-permit-indicator').innerText = '符合免施工许可条件';
+        document.getElementById('cost-permit-indicator').className = 'text-emerald-400 font-semibold';
+        document.getElementById('gate-permit-status').innerText = '✓ EXEMPT FOLD (免办已折叠)';
+        document.getElementById('gate-permit-status').className = 'text-emerald-400 font-mono';
+      } else {
+        document.getElementById('cost-permit-indicator').innerText = '须依法办理施工许可证';
+        document.getElementById('cost-permit-indicator').className = 'text-amber-400 font-semibold';
+        document.getElementById('gate-permit-status').innerText = '✓ PERMIT INCLUDED (必须审批)';
+        document.getElementById('gate-permit-status').className = 'text-cyan-400 font-mono';
+      }
+
+      // 2. 面积规模与布局系数 (Area Multipliers)
+      const scaleFactor = Math.pow(area / 1500, 0.58);
+      let layoutMultiplier = 1.0;
+      if (layout === 'open_plan') layoutMultiplier = 0.82;
+      if (layout === 'cellular') layoutMultiplier = 1.25;
+
+      // 3. 班次折算 (2班≠2×，按 1.75× 效率算)
+      const shiftEfficiency = (shiftMode === 2) ? 1.75 : 1.0;
+
+      // 4. 计算每道工序的工期与人工天
+      let schedule = [];
+      let totalWorkerDays = 0;
+
+      TASK_CATALOG.forEach(task => {
+        // 免办折叠
+        if (task.canFold && isExempt) return;
+
+        // 毛坯房免除拆除
+        if (siteCond === 'shell' && (task.id === 'demolition' || task.id === 'waste_removal')) return;
+
+        let duration = task.baseDays;
+        let workerDays = 0;
+        let crew = 4;
+
+        if (task.isPhysical) {
+          crew = Math.max(2, Math.round((area / 400) * (layoutMultiplier)));
+          if (shiftMode === 2) crew = Math.round(crew * 1.4);
+
+          // 拥挤度惩罚
+          let congestionPenalty = 1.0;
+          if (useCongestion && crew > (area / 80)) {
+            congestionPenalty = Math.max(0.7, 1.0 - (crew - area / 80) * 0.02);
+          }
+
+          let calculatedDays = Math.ceil((task.baseDays * scaleFactor * layoutMultiplier) / (shiftEfficiency * congestionPenalty));
+          duration = Math.max(2, calculatedDays);
+          workerDays = Math.round(duration * crew * shiftEfficiency);
+        } else {
+          if (delivery === 'DB' && task.id === 'bidding') duration = 8;
+          if (bidding === 'public' && task.id === 'bidding') duration += 6;
+          workerDays = Math.round(duration * 2);
+        }
+
+        totalWorkerDays += workerDays;
+        
+        schedule.push({
+          id: task.id,
+          phase: task.phase,
+          name: task.name,
+          duration: duration,
+          workerDays: workerDays,
+          crew: crew,
+          isPhysical: task.isPhysical,
+          isGate: task.isGate,
+          trade: task.trade,
+          cal: task.cal
+        });
+      });
+
+      // 5. 正向与逆向 CPM 前置推算 (Predecessor CPM Pass)
+      let currentDay = 0;
+      schedule.forEach((task) => {
+        task.es = currentDay;
+        task.ef = currentDay + task.duration;
+        
+        if (task.id === 'hvac_ducts' || task.id === 'fire_pipe' || task.id === 'plumbing_test') {
+          currentDay += Math.ceil(task.duration * 0.35);
+        } else if (task.id === 'waterproofing' || task.id === 'tiling_floor') {
+          currentDay += Math.ceil(task.duration * 0.5);
+        } else if (task.id === 'fixtures_install' || task.id === 'carpet_laying') {
+          currentDay += Math.ceil(task.duration * 0.4);
+        } else {
+          currentDay = task.ef;
+        }
+      });
+
+      const totalProjectSpan = schedule[schedule.length - 1].ef;
+      
+      schedule.forEach(task => {
+        task.isCritical = (task.id === 'bidding' || task.id === 'design_review' || task.id === 'demolition' || task.id === 'elec_roughin' || task.id === 'concealed_gate' || task.id === 'drywall_close' || task.id === 'plaster_putty' || task.id === 'carpet_laying' || task.id === 'iaq_phase1' || task.id === 'furniture_in' || task.id === 'iaq_phase2' || task.id === 'final_handover');
+      });
+
+      // 6. 日期转换
+      const anchorDate = new Date(anchorDateStr);
+      let startDate, finishDate;
+      if (anchorDir === 'forward') {
+        startDate = new Date(anchorDate);
+        finishDate = new Date(startDate);
+        finishDate.setDate(finishDate.getDate() + totalProjectSpan);
+      } else {
+        finishDate = new Date(anchorDate);
+        startDate = new Date(finishDate);
+        startDate.setDate(startDate.getDate() - totalProjectSpan);
+      }
+
+      const formatDate = d => d.toISOString().split('T')[0].replace(/-/g, '.');
+      const peakWorkers = Math.round(Math.max(...schedule.map(t => t.crew)) * 1.6);
+      const avgWorkers = Math.round(totalWorkerDays / totalProjectSpan);
+
+      // 更新 KPIs
+      document.getElementById('kpi-calendar-days').innerText = totalProjectSpan;
+      document.getElementById('kpi-date-range').innerText = `${formatDate(startDate)} → ${formatDate(finishDate)}`;
+      document.getElementById('kpi-site-days').innerText = Math.round(totalProjectSpan * 0.76);
+      document.getElementById('kpi-workerdays').innerText = totalWorkerDays.toLocaleString();
+      document.getElementById('kpi-peak-workers').innerText = peakWorkers;
+      document.getElementById('kpi-avg-workers').innerText = avgWorkers;
+      document.getElementById('kpi-critical-tasks').innerText = schedule.filter(t => t.isCritical).length;
+      document.getElementById('chart-total-days').innerText = totalProjectSpan;
+      document.getElementById('chart-capacity-limit').innerText = Math.round(area / 32);
+
+      // 更新三方案对比数据
+      document.getElementById('scen-a-calendar').innerText = `${totalProjectSpan} 天`;
+      document.getElementById('scen-a-workerdays').innerText = `${totalWorkerDays.toLocaleString()} 人天`;
+      document.getElementById('scen-a-peak').innerText = `${peakWorkers} 人`;
+
+      const scenBDays = Math.round(totalProjectSpan * 0.76);
+      document.getElementById('scen-b-calendar').innerText = `${scenBDays} 天 (-24%)`;
+      document.getElementById('scen-b-workerdays').innerText = `${Math.round(totalWorkerDays * 1.15).toLocaleString()} 人天`;
+      document.getElementById('scen-b-peak').innerText = `${Math.round(peakWorkers * 1.4)} 人`;
+
+      const scenCDays = Math.round(totalProjectSpan * 1.18);
+      document.getElementById('scen-c-calendar').innerText = `${scenCDays} 天 (+18%)`;
+      document.getElementById('scen-c-workerdays').innerText = `${Math.round(totalWorkerDays * 0.96).toLocaleString()} 人天`;
+      document.getElementById('scen-c-peak').innerText = `${Math.round(peakWorkers * 0.65)} 人`;
+
+      currentSchedule = schedule;
+      currentKPIs = { totalProjectSpan, totalWorkerDays, peakWorkers, avgWorkers, startDate, finishDate, isExempt };
+
+      renderGanttChart(schedule, totalProjectSpan);
+      renderCriticalList(schedule);
+      renderManpowerChart(totalProjectSpan, peakWorkers, avgWorkers);
+    }
+
+    function renderGanttChart(schedule, totalDays) {
+      const container = document.getElementById('gantt-rows');
+      const scalesContainer = document.getElementById('gantt-timeline-scales');
+      container.innerHTML = '';
+      scalesContainer.innerHTML = '';
+
+      const step = Math.max(5, Math.ceil(totalDays / 12));
+      for (let d = 0; d <= totalDays; d += step) {
+        const pct = (d / totalDays) * 100;
+        const mark = document.createElement('div');
+        mark.style.left = `${pct}%`;
+        mark.className = 'absolute -translate-x-1/2';
+        mark.innerText = `D+${d}`;
+        scalesContainer.appendChild(mark);
+      }
+      scalesContainer.className = 'flex-1 relative h-4';
+
+      schedule.forEach((task, idx) => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center hover:bg-white/5 py-1 px-1 rounded transition-colors group';
+
+        const leftPct = (task.es / totalDays) * 100;
+        const widthPct = Math.max(1.8, (task.duration / totalDays) * 100);
+
+        let barClass = 'bg-cyan-500/70 text-cyan-200 border border-cyan-400/30';
+        if (task.isCritical) {
+          barClass = 'bg-rose-500/80 text-rose-100 border border-rose-400/50 critical-bar font-bold';
+        } else if (task.isGate) {
+          barClass = 'bg-amber-500/80 text-amber-100 border border-amber-400/50';
+        }
+
+        let tagBadge = '';
+        if (task.isGate) tagBadge = '<span class="ml-1 text-[9px] px-1 rounded bg-amber-500/20 text-amber-300">门禁</span>';
+        if (task.isCritical) tagBadge = '<span class="ml-1 text-[9px] px-1 rounded bg-rose-500/20 text-rose-300">关键</span>';
+
+        row.innerHTML = `
+          <div class="w-64 shrink-0 font-sans text-xs truncate flex items-center text-slate-300 group-hover:text-white">
+            <span class="text-[10px] text-slate-500 font-mono w-6">${idx + 1}.</span>
+            <span class="truncate" title="${task.name}">${task.name}</span>
+            ${tagBadge}
+          </div>
+          <div class="w-20 shrink-0 text-center text-slate-300">${task.duration} 天</div>
+          <div class="w-20 shrink-0 text-center text-slate-400">${task.workerDays}</div>
+          <div class="w-20 shrink-0 text-center text-[10px] text-slate-500 font-mono">FS+${Math.round(task.duration*0.2)}</div>
+          <div class="flex-1 h-6 relative bg-slate-900/40 rounded overflow-hidden gantt-grid">
+            <div 
+              style="left: ${leftPct}%; width: ${widthPct}%;" 
+              class="absolute top-1 bottom-1 rounded flex items-center px-1.5 text-[10px] truncate cursor-pointer transition-all duration-300 hover:scale-y-110 ${barClass}"
+              title="${task.name}&#10;持续: ${task.duration}天&#10;工日: ${task.workerDays}人天&#10;班组: ${task.crew}人&#10;时段: 第${task.es}天 - 第${task.ef}天"
+            >
+              ${task.duration >= 4 ? task.duration + 'd' : ''}
+            </div>
+          </div>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    function renderCriticalList(schedule) {
+      const list = document.getElementById('critical-tasks-list');
+      list.innerHTML = '';
+      const criticals = schedule.filter(t => t.isCritical);
+      criticals.forEach((t, i) => {
+        const item = document.createElement('div');
+        item.className = 'flex items-center justify-between p-2.5 rounded-lg bg-slate-800/60 border border-rose-500/20 text-xs';
+        item.innerHTML = `
+          <div class="flex items-center space-x-2">
+            <span class="w-5 h-5 rounded-full bg-rose-500/20 text-rose-300 flex items-center justify-center font-mono text-[10px] font-bold">${i + 1}</span>
+            <div>
+              <div class="font-medium text-slate-200">${t.name}</div>
+              <div class="text-[10px] text-slate-400 font-mono">工种: ${t.trade} | 时段: Day ${t.es} → ${t.ef}</div>
+            </div>
+          </div>
+          <div class="text-right font-mono">
+            <div class="text-rose-400 font-bold">${t.duration} 天</div>
+            <div class="text-[10px] text-emerald-400">时差 TF = 0d</div>
+          </div>
+        `;
+        list.appendChild(item);
+      });
+    }
+
+    function renderManpowerChart(totalDays, peak, avg) {
+      const canvas = document.getElementById('manpower-canvas');
+      const ctx = canvas.getContext('2d');
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * window.devicePixelRatio;
+      canvas.height = rect.height * window.devicePixelRatio;
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+      const w = rect.width;
+      const h = rect.height;
+      ctx.clearRect(0, 0, w, h);
+
+      const points = [];
+      const numPoints = 60;
+      for (let i = 0; i <= numPoints; i++) {
+        const xRatio = i / numPoints;
+        let yRatio = 0.15;
+        if (xRatio < 0.2) {
+          yRatio = 0.15 + (xRatio / 0.2) * 0.45;
+        } else if (xRatio < 0.75) {
+          yRatio = 0.6 + Math.sin((xRatio - 0.2) / 0.55 * Math.PI) * 0.38;
+        } else {
+          yRatio = 0.6 * (1 - (xRatio - 0.75) / 0.25) + 0.08;
+        }
+        points.push({ x: xRatio * w, y: h - (yRatio * h * 0.85) });
+      }
+
+      const grad = ctx.createLinearGradient(0, 0, 0, h);
+      grad.addColorStop(0, 'rgba(6, 182, 212, 0.45)');
+      grad.addColorStop(1, 'rgba(6, 182, 212, 0.02)');
+
+      ctx.beginPath();
+      ctx.moveTo(0, h);
+      points.forEach(p => ctx.lineTo(p.x, p.y));
+      ctx.lineTo(w, h);
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      ctx.beginPath();
+      points.forEach((p, idx) => {
+        if (idx === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      });
+      ctx.strokeStyle = '#22D3EE';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.setLineDash([4, 4]);
+      ctx.moveTo(0, h * 0.25);
+      ctx.lineTo(w, h * 0.25);
+      ctx.strokeStyle = 'rgba(245, 158, 11, 0.6)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    function triggerRecalculate() {
+      runDeterministicSimulation();
+    }
+
+    function resetDefaultParams() {
+      document.getElementById('input-city').value = 'shanghai';
+      document.getElementById('input-area').value = 1500;
+      updateAreaDisplay(1500);
+      document.getElementById('input-delivery').value = 'DBB';
+      document.getElementById('input-bidding').value = 'invite';
+      document.getElementById('input-site-condition').value = 'full_strip';
+      document.getElementById('input-layout').value = 'standard';
+      document.querySelector('input[name="shift-mode"][value="1"]').checked = true;
+      document.getElementById('input-congestion').checked = true;
+      triggerRecalculate();
+    }
+
+    function switchSubTab(tab) {
+      document.getElementById('subpanel-gantt').classList.add('hidden');
+      document.getElementById('subpanel-scenarios').classList.add('hidden');
+      document.getElementById('subpanel-floats').classList.add('hidden');
+
+      document.getElementById('subtab-btn-gantt').className = 'px-3 py-1 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5';
+      document.getElementById('subtab-btn-scenarios').className = 'px-3 py-1 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5';
+      document.getElementById('subtab-btn-floats').className = 'px-3 py-1 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5';
+
+      if (tab === 'gantt') {
+        document.getElementById('subpanel-gantt').classList.remove('hidden');
+        document.getElementById('subtab-btn-gantt').className = 'px-3 py-1 rounded-lg text-xs font-medium bg-cyan-500/20 text-cyan-300 border border-cyan-500/30';
+      } else if (tab === 'scenarios') {
+        document.getElementById('subpanel-scenarios').classList.remove('hidden');
+        document.getElementById('subtab-btn-scenarios').className = 'px-3 py-1 rounded-lg text-xs font-medium bg-cyan-500/20 text-cyan-300 border border-cyan-500/30';
+      } else if (tab === 'floats') {
+        document.getElementById('subpanel-floats').classList.remove('hidden');
+        document.getElementById('subtab-btn-floats').className = 'px-3 py-1 rounded-lg text-xs font-medium bg-cyan-500/20 text-cyan-300 border border-cyan-500/30';
+      }
+    }
+
+    function switchMainTab(view) {
+      const views = ['cockpit', 'arch', 'workflow'];
+      views.forEach(v => {
+        document.getElementById(`view-${v}`).classList.add('hidden');
+        const btn = document.getElementById(`tab-btn-${v}`);
+        btn.className = 'px-4 py-1.5 rounded-lg text-xs font-medium flex items-center space-x-1.5 transition-all text-slate-400 hover:text-white hover:bg-white/5';
+      });
+
+      document.getElementById(`view-${view}`).classList.remove('hidden');
+      const activeBtn = document.getElementById(`tab-btn-${view}`);
+      activeBtn.className = 'px-4 py-1.5 rounded-lg text-xs font-medium flex items-center space-x-1.5 transition-all bg-cyan-500 text-white shadow-md shadow-cyan-500/30';
+    }
+
+    function exportScheduleJSON() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
+        meta: { engine: 'PMP Lead PM Scheduler', version: '6.4.0', timestamp: new Date().toISOString() },
+        kpis: currentKPIs,
+        schedule: currentSchedule
+      }, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute('href', dataStr);
+      downloadAnchor.setAttribute('download', `pmp_schedule_simulation_${new Date().toISOString().slice(0,10)}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      runDeterministicSimulation();
+    });
+    window.addEventListener('resize', () => {
+      if (currentKPIs.totalProjectSpan) {
+        renderManpowerChart(currentKPIs.totalProjectSpan, currentKPIs.peakWorkers, currentKPIs.avgWorkers);
+      }
+    });
+  </script>
+</body>
+</html>
